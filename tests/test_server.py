@@ -321,3 +321,64 @@ def test_post_settings_rejects_invalid_multi_turn_values():
     assert client.post("/settings", json={"history_turns": 51}).status_code == 422
     assert client.post("/settings", json={"rerank_candidates": 0}).status_code == 422
     assert client.post("/settings", json={"rerank_candidates": 129}).status_code == 422
+
+
+# ---------- 工具调用（Agent） ----------
+
+
+def test_query_returns_tool_calls(monkeypatch):
+    """工具调用记录要透传到接口，前端才能把「调了什么、拿到什么」展示出来。"""
+    monkeypatch.setattr(
+        server,
+        "answer_question",
+        lambda question, history=None, top_k=None: Answer(
+            "北京今天晴，30.5°C。",
+            [],
+            query=question,
+            tool_calls=[
+                {
+                    "name": "get_weather",
+                    "label": "查天气",
+                    "arguments": {"city": "北京"},
+                    "result": "【当前】晴，30.5°C",
+                    "error": "",
+                }
+            ],
+        ),
+    )
+
+    body = client.post("/query", json={"question": "北京今天天气怎么样？"}).json()
+
+    assert body["citations"] == []
+    assert body["tool_calls"][0]["name"] == "get_weather"
+    assert body["tool_calls"][0]["label"] == "查天气"
+    assert body["tool_calls"][0]["result"] == "【当前】晴，30.5°C"
+
+
+def test_get_settings_exposes_agent_options():
+    body = client.get("/settings").json()
+
+    assert body["agent_enabled"] is False, "测试基线里 Agent 是关闭的"
+    assert body["agent_max_steps"] == 4
+
+
+def test_post_settings_persists_agent_options(monkeypatch, tmp_path):
+    env_path = _temp_env(monkeypatch, tmp_path)
+    monkeypatch.setattr(server, "reset_client", lambda: None)
+
+    body = client.post(
+        "/settings", json={"agent_enabled": True, "agent_max_steps": 2}
+    ).json()
+
+    assert body["agent_enabled"] is True
+    assert body["agent_max_steps"] == 2
+    assert body["needs_reindex"] is False, "工具调用配置不影响索引"
+
+    text = env_path.read_text(encoding="utf-8")
+    assert "AGENT_ENABLED=true" in text
+    assert "AGENT_MAX_STEPS=2" in text
+
+
+def test_post_settings_rejects_invalid_agent_steps():
+    assert client.post("/settings", json={"agent_max_steps": 0}).status_code == 422
+    assert client.post("/settings", json={"agent_max_steps": 11}).status_code == 422

@@ -41,6 +41,8 @@ def test_required_element_ids_present():
         "historyTurnsInput",
         "rerankToggle",
         "rerankCandidatesInput",
+        "agentToggle",
+        "agentStepsInput",
         "saveBtn",
         "cancelBtn",
     ]
@@ -112,3 +114,33 @@ def test_rerank_score_is_visible():
     assert "rerank_score" in HTML
     assert "Rerank" in HTML
     assert "向量" in HTML  # 向量分保留作对照
+
+
+def test_tool_calls_are_rendered():
+    """工具调用同样要看得见 —— 否则「模型查了天气」和「模型编了天气」无从分辨。"""
+    assert "renderToolCalls" in HTML
+    assert "data.tool_calls" in HTML
+    assert "调用工具" in HTML
+    assert "tool-state" in HTML, "成功 / 失败要能区分"
+    assert "已返回" in HTML
+
+
+def test_agent_settings_are_wired():
+    assert "agent_enabled" in HTML
+    assert "agent_max_steps" in HTML
+    assert "agentToggle.checked" in HTML
+
+
+def test_tool_call_rendering_escapes_untrusted_values():
+    """工具标签、参数、返回内容都来自外部，必须走转义路径。
+
+    标签与参数拼进 innerHTML，所以要显式 escapeHtml；返回内容用 textContent 写入。
+    这条断言看着像在「测源码字符串」，但它守的是一个真实的 XSS 面：
+    外部接口的返回一旦被当 HTML 解析，页面就能被注进去。
+    """
+    body = HTML.split("function renderToolCalls", 1)[1].split("/* ---------- 建库报告", 1)[0]
+
+    assert "escapeHtml(call.label || call.name)" in body, "工具名要转义"
+    assert "escapeHtml(args)" in body, "参数要转义"
+    assert "pre.textContent = ok ? call.result : call.error" in body, "返回内容要走 textContent"
+    assert "innerHTML = call.result" not in body

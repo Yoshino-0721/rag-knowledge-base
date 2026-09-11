@@ -19,9 +19,13 @@ _TRACKED_FIELDS = (
     "rerank_enabled",
     "rerank_model",
     "rerank_candidates",
+    "agent_enabled",
+    "agent_max_steps",
 )
 
-# 每个用例开始前强制回到这组基线值，避免受开发者本机 .env 影响
+# 每个用例开始前强制回到这组基线值，避免受开发者本机 .env 影响。
+# 注意 agent_enabled 默认置 False：工具调用会真打外部接口，
+# 用例必须显式打开（或直接注入工具说明书）才能走 Agent 路径。
 _BASELINE = {
     "app_password": "",
     "history_turns": 6,
@@ -29,6 +33,8 @@ _BASELINE = {
     "rerank_enabled": True,
     "rerank_model": "rerank",
     "rerank_candidates": 20,
+    "agent_enabled": False,
+    "agent_max_steps": 4,
 }
 
 

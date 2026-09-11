@@ -34,6 +34,8 @@ FIELD_TO_ENV = {
     "rerank_enabled": "RERANK_ENABLED",
     "rerank_model": "RERANK_MODEL",
     "rerank_candidates": "RERANK_CANDIDATES",
+    "agent_enabled": "AGENT_ENABLED",
+    "agent_max_steps": "AGENT_MAX_STEPS",
 }
 
 _TRUE_VALUES = {"1", "true", "yes", "on"}
@@ -71,6 +73,9 @@ class Settings:
     rerank_enabled: bool = True
     rerank_model: str = "rerank"
     rerank_candidates: int = 20
+    # 工具调用（Agent）
+    agent_enabled: bool = True
+    agent_max_steps: int = 4
 
     @property
     def access_protected(self) -> bool:
@@ -133,6 +138,8 @@ def load_settings() -> Settings:
         rerank_enabled=_get_bool("RERANK_ENABLED", "true"),
         rerank_model=_get("RERANK_MODEL", "rerank"),
         rerank_candidates=int(_get("RERANK_CANDIDATES", "20")),
+        agent_enabled=_get_bool("AGENT_ENABLED", "true"),
+        agent_max_steps=int(_get("AGENT_MAX_STEPS", "4")),
     )
 
 

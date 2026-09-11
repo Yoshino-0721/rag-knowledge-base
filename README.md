@@ -3,13 +3,16 @@
 ![Python](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?logo=fastapi&logoColor=white)
 ![ChromaDB](https://img.shields.io/badge/ChromaDB-local-FF6B6B)
-![Tests](https://img.shields.io/badge/tests-163%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-225%20passed-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
 把散落在本机的 PDF、Word、PPT、Markdown 变成**可溯源**的问答知识库。
 
 问它问题时，它**只依据你的文档**作答，并标注每条结论来自哪份文件的哪个片段 ——
 PDF 精确到页码、PPT 到页序，还会给出相似度。**能核对，才敢信任。**
+
+知识库答不了的（比如"北京今天天气"），它会去**调用工具**把实时数据取回来 ——
+工具调用同样是可见、可展开核对的，而不是让模型凭记忆编一个。
 
 ![界面效果](docs/demo.png)
 
@@ -50,8 +53,9 @@ PDF 精确到页码、PPT 到页序，还会给出相似度。**能核对，才�
 | 精排（Rerank） | 先宽召回一批候选，再用智谱 `rerank` 模型二次打分截取 Top-K。取**原始打分** —— 接口默认给的归一化分在候选彼此都相关时会一起饱和到 `1.0`，完全看不出高下；引用卡片同时显示 Rerank 分与向量分 |
 | 多轮对话 | 上下文由前端携带（服务端无状态，重启不丢）；追问「它的优势是什么」也接得上 |
 | 追问改写 | 带指代的追问先用模型补全成可独立检索的问题再去查库，并把改写结果显示在答案下方 |
+| 工具调用（Agent） | 知识库之外的实时信息由模型自行调用工具获取。内置 `get_weather`（Open-Meteo，免费无需密钥）；带步数上限、工具失败会回填给模型让它换招而不是整轮报错；问题同时含知识库与工具两类诉求时会两部分都答到 |
 | 基于上下文的生成 | 召回片段按编号拼进 Prompt，要求模型"看着材料回答"、不得编造 |
-| 来源引用 | 回答里的 `[1]` 渲染成引用角标；引用卡片显示文件、页码、相似度进度条，可展开原文并一键复制 |
+| 来源引用 | 回答里的 `[1]` 渲染成引用角标；引用卡片显示文件、页码、相似度进度条，可展开原文并一键复制。**答案里一个角标都没有时不展示引用卡片** —— 检索是照常做的，但模型没用到的材料不该挂在答案下面冒充依据 |
 | 答案渲染 | 轻度 Markdown（标题 / 有序无序列表 / 行内代码 / 粗体），文档内容全部转义后再渲染 |
 | 移动端适配 | 响应式布局，手机上可正常问答 —— 方便扫码演示 |
 | 网页设置面板 | 在界面上直接填写 API Key 与模型参数，保存即写回 `.env` 并立即生效，无需重启 |
@@ -69,14 +73,27 @@ flowchart LR
 
     Q["用户提问"] --> RW["追问改写<br/>rewrite.py<br/>结合历史补全指代"]
     H2["对话历史"] -.-> RW
-    H2 -.-> G
+    H2 -.-> AG
     RW --> R["向量宽召回<br/>候选池"]
     E --> R
     R --> RR["精排 Rerank<br/>二次打分"]
-    RR --> G["拼 Prompt<br/>片段带编号注入"]
-    G --> H["GLM 生成<br/>强制标注来源"]
-    H --> I["答案 + 引用卡片<br/>Rerank 分 + 向量分"]
+    RR --> AG["工具调用循环<br/>agent.py<br/>最多 N 步"]
+    AG -->|"需要实时信息"| T["工具<br/>tools.py<br/>查天气"]
+    T -->|"结果回填"| AG
+    AG --> H["GLM 生成<br/>强制标注来源"]
+    H --> I["答案 + 引用卡片<br/>+ 工具调用记录"]
 ```
+
+**两个刻意的分工**：
+
+- **检索不交给模型决定**。知识库检索固定在流水线里前置完成 —— 引用溯源是这个项目的根基，
+  让模型自己判断"要不要查库"反而会让它更爱自由发挥。
+- **工具只补知识库之外的一环**，并且循环有步数上限、工具失败会把错误信息回填给模型
+  （让它换参数重试），而不是把整轮问答打断。
+
+> 工具结果的末尾会附一句"把每个诉求都答到"的提醒。这句不是冗余 ——
+> 实测发现：只在系统提示里约束，模型接到工具结果后仍会只答那一半，
+> 把问题里属于知识库的部分丢掉。提醒必须落在最靠近生成位置的那条消息上。
 
 **增量索引**：每个文件算 SHA-256 存进 `storage/manifest.json`，入库前比对，
 只处理变化的文件 —— 知识库变大后这点很关键。
@@ -89,9 +106,10 @@ flowchart LR
 | 向量库 | ChromaDB（本地持久化，零运维） |
 | 大模型 / Embedding | 智谱 GLM（OpenAI 兼容接口，一个 Key 通用） |
 | 精排 | 智谱 `rerank`（**非** OpenAI 兼容协议，直接发 HTTP 请求，复用同一个 Key） |
+| 工具调用 | GLM 的 function calling + Open-Meteo 免费天气接口（无需密钥） |
 | 文档解析 | PyMuPDF / python-docx / python-pptx / 原生读取 |
 | 前端 | 原生 HTML + JS，无需构建 |
-| 测试 | pytest（162 项） |
+| 测试 | pytest（225 项） |
 
 > 说明：**未引入 LangChain**。本项目链路只有「检索 → 拼 Prompt → 调用模型」，
 > 原生实现更短更透明、出错好定位；等将来需要多路检索或 Agent 编排时再评估。
@@ -109,7 +127,9 @@ flowchart LR
 │  ├─ ingest.py      # 建库流水线 + 增量索引
 │  ├─ retrieve.py    # 向量召回 + 精排重排序
 │  ├─ rewrite.py     # 追问改写：把指代补全成可独立检索的问题
-│  ├─ pipeline.py    # 编排：改写 → 召回精排 → 生成
+│  ├─ tools.py       # 工具注册表与具体工具（查天气）
+│  ├─ agent.py       # 工具调用循环：执行 → 回填 → 再请求，带上限与降级
+│  ├─ pipeline.py    # 编排：改写 → 召回精排 → 生成（必要时调工具）
 │  ├─ generate.py    # Prompt 组装与带引用生成
 │  └─ server.py      # FastAPI 接口
 ├─ web/index.html    # 前端聊天界面 + 设置面板
@@ -185,6 +205,8 @@ docker compose up -d --build
 | `RERANK_ENABLED` | `true` | 精排开关；关掉也能用，只是召回精度降一档 |
 | `RERANK_MODEL` | `rerank` | 精排模型编码 |
 | `RERANK_CANDIDATES` | `20` | 送入精排的候选条数（接口上限 128） |
+| `AGENT_ENABLED` | `true` | 工具调用开关；关掉即退化为纯知识库问答，行为与之前完全一致 |
+| `AGENT_MAX_STEPS` | `4` | 单轮问答最多允许多少次工具调用往返，防止无限循环 |
 
 ## 接口
 
@@ -196,7 +218,7 @@ docker compose up -d --build
 | POST | `/settings` | 保存配置并写回 `.env`，立即生效 |
 | POST | `/upload` | 上传文档（multipart，字段名 `files`），自动增量建库 |
 | POST | `/ingest` | 重建索引，body `{"force": false}`；`force=true` 全量重建 |
-| POST | `/query` | 提问，body `{"question": "...", "top_k": 5, "history": [{"role": "user", "content": "..."}]}`；返回 `answer`、`citations`、`query`（实际用于检索的问题）、`rewritten`（是否发生改写） |
+| POST | `/query` | 提问，body `{"question": "...", "top_k": 5, "history": [{"role": "user", "content": "..."}]}`；返回 `answer`、`citations`、`tool_calls`（本轮工具调用记录）、`query`（实际用于检索的问题）、`rewritten`（是否发生改写） |
 
 ## 测试
 
@@ -204,11 +226,11 @@ docker compose up -d --build
 pytest
 ```
 
-162 项测试全部使用桩对象，不发起真实 API 调用，也不会改动真实的 `.env`。
+225 项测试全部使用桩对象，不发起真实 API 调用、不访问真实天气接口，也不会改动真实的 `.env`。
 
 ## 后续规划（V2+）
 
-- 接入 Agent 工具（查天气、发邮件等），从"只读知识库"扩展到"能动手做事"
+- 更多工具：邮件、日程、代码执行等，从"只读知识库"扩展到"能动手做事"
 - 混合检索（BM25 + 向量），补齐关键词精确匹配的短板
 - 元数据过滤（按文件 / 标签 / 时间）
 - 文档管理界面（列表、删除、重新索引）

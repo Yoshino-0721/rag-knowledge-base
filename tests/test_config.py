@@ -176,6 +176,8 @@ def test_load_settings_multi_turn_defaults(monkeypatch):
         "RERANK_ENABLED",
         "RERANK_MODEL",
         "RERANK_CANDIDATES",
+        "AGENT_ENABLED",
+        "AGENT_MAX_STEPS",
     ):
         monkeypatch.delenv(name, raising=False)
 
@@ -219,3 +221,37 @@ def test_apply_settings_updates_turn_and_rerank_fields(temp_env):
     text = temp_env.read_text(encoding="utf-8")
     assert "HISTORY_TURNS=0" in text
     assert "RERANK_CANDIDATES=8" in text
+
+
+# ---------- 工具调用（Agent） ----------
+
+
+def test_load_settings_agent_defaults(monkeypatch):
+    monkeypatch.delenv("AGENT_ENABLED", raising=False)
+    monkeypatch.delenv("AGENT_MAX_STEPS", raising=False)
+
+    settings = load_settings()
+
+    assert settings.agent_enabled is True
+    assert settings.agent_max_steps == 4
+
+
+def test_load_settings_reads_agent_overrides(monkeypatch):
+    monkeypatch.setenv("AGENT_ENABLED", "false")
+    monkeypatch.setenv("AGENT_MAX_STEPS", "7")
+
+    settings = load_settings()
+
+    assert settings.agent_enabled is False
+    assert settings.agent_max_steps == 7
+
+
+def test_apply_settings_writes_agent_fields(temp_env):
+    config.apply_settings(agent_enabled=False, agent_max_steps=2)
+
+    assert config.settings.agent_enabled is False
+    assert config.settings.agent_max_steps == 2
+
+    text = temp_env.read_text(encoding="utf-8")
+    assert "AGENT_ENABLED=false" in text, "布尔值要小写，便于手工阅读"
+    assert "AGENT_MAX_STEPS=2" in text
