@@ -53,9 +53,11 @@ def test_readme_demo_section_matches_screenshot():
     assert len(section) == 2, "README 缺少「效果演示」小节"
 
     body = section[1].split("\n## ", 1)[0]
-    # 新版截图展示的是同一份 PDF 上的两个问题
-    assert "集线器" in body and "TCP" in body, "效果演示文案未随截图更新"
-    assert "相似度" in body, "效果演示应说明引用卡片里的相似度"
+    # 截图展示的是同一份 PDF 上的连续两问，第二问是带指代的追问
+    assert "集线器" in body and "交换机" in body, "效果演示文案未随截图更新"
+    assert "改写" in body, "效果演示应说明追问改写（截图里有改写提示）"
+    assert "RERANK" in body and "向量" in body, "效果演示应说明引用卡片上的两个分数"
+    assert "页码" in body, "效果演示应说明引用可定位到页码"
 
 
 def test_deploy_doc_local_path_examples_follow_repo_location():
