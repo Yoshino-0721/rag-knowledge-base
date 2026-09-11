@@ -13,6 +13,7 @@
     --muted: #6B6A66;
     --accent: #534AB7;
     --accent-soft: #EEEDFE;
+    --danger: #A32D2D;
     --radius: 12px;
   }
   * { box-sizing: border-box; }
@@ -38,7 +39,7 @@
     border-bottom: 0.5px solid var(--border);
   }
   header h1 { font-size: 15px; font-weight: 500; margin: 0; margin-right: auto; }
-  header .status { font-size: 12px; color: var(--muted); min-width: 72px; text-align: right; }
+  header .status { font-size: 12px; color: var(--muted); min-width: 64px; text-align: right; }
   header button {
     font: inherit;
     padding: 6px 14px;
@@ -50,6 +51,7 @@
   }
   header button:hover { border-color: var(--accent); color: var(--accent); }
   header button:disabled { opacity: 0.5; cursor: not-allowed; }
+  header button.warn { border-color: var(--danger); color: var(--danger); }
   main {
     flex: 1;
     overflow-y: auto;
@@ -141,6 +143,70 @@
     cursor: pointer;
   }
   #send:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(44, 44, 42, 0.32);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    z-index: 20;
+  }
+  .overlay.open { display: flex; }
+  .panel {
+    background: var(--surface);
+    border-radius: 16px;
+    width: 100%;
+    max-width: 460px;
+    max-height: 100%;
+    overflow-y: auto;
+    padding: 22px 24px 20px;
+  }
+  .panel h2 { font-size: 15px; font-weight: 500; margin: 0 0 4px; }
+  .panel .sub { font-size: 12px; color: var(--muted); margin-bottom: 18px; }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px; }
+  .field input {
+    width: 100%;
+    font: inherit;
+    padding: 9px 12px;
+    border: 0.5px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--text);
+    outline: none;
+  }
+  .field input:focus { border-color: var(--accent); }
+  .field .tip { font-size: 12px; color: var(--muted); margin-top: 5px; }
+  .field .tip a { color: var(--accent); }
+  .row { display: flex; gap: 12px; }
+  .row .field { flex: 1; }
+  .panel .actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+  .panel .actions button {
+    font: inherit;
+    padding: 9px 18px;
+    border-radius: 8px;
+    cursor: pointer;
+    border: 0.5px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+  }
+  .panel .actions button.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .panel .actions button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .panel .notice {
+    font-size: 12px;
+    color: var(--danger);
+    margin-top: 12px;
+    display: none;
+  }
+  .panel .notice.show { display: block; }
+
   body.dragover::after {
     content: "松开鼠标即可上传文档";
     position: fixed;
@@ -166,15 +232,15 @@
            accept=".md,.markdown,.txt,.pdf,.docx,.pptx,.py,.json,.csv,.yaml,.yml">
     <button id="upload">上传文档</button>
     <button id="ingest">重建索引</button>
+    <button id="settingsBtn">设置</button>
     <span class="status" id="status">就绪</span>
   </header>
 
   <main id="messages">
     <div class="hint">
-      点击右上角「上传文档」选择文件，或直接把文件拖进本页面；支持
+      先在右上角「设置」里填入 API Key；然后上传或拖入文档（支持
       <code>PDF</code> <code>Word</code> <code>PPT</code> <code>Markdown</code>
-      <code>代码 / 文本</code>。上传后会自动建库，也可以手动放进
-      <code>data/</code> 目录再点「重建索引」。
+      <code>代码 / 文本</code>），上传后会自动建库。完成后即可在下方提问。
     </div>
   </main>
 
@@ -184,14 +250,70 @@
   </footer>
 </div>
 
+<div class="overlay" id="overlay">
+  <div class="panel">
+    <h2>设置</h2>
+    <div class="sub">保存后会写入项目根目录的 <code>.env</code>，并立即生效，无需重启服务。</div>
+
+    <div class="field">
+      <label for="keyInput">智谱 API Key</label>
+      <input type="password" id="keyInput" autocomplete="off" spellcheck="false"
+             placeholder="粘贴你的 API Key">
+      <div class="tip" id="keyTip">
+        申请地址：<a href="https://bigmodel.cn/usercenter/apikeys" target="_blank" rel="noopener">bigmodel.cn/usercenter/apikeys</a>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label for="chatModelInput">对话模型</label>
+        <input id="chatModelInput" spellcheck="false" placeholder="glm-5.2">
+      </div>
+      <div class="field">
+        <label for="embedModelInput">Embedding 模型</label>
+        <input id="embedModelInput" spellcheck="false" placeholder="embedding-3">
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label for="embedDimInput">向量维度</label>
+        <input id="embedDimInput" type="number" min="16" max="4096" placeholder="1024">
+      </div>
+      <div class="field">
+        <label for="topKInput">召回条数 Top-K</label>
+        <input id="topKInput" type="number" min="1" max="50" placeholder="5">
+      </div>
+    </div>
+
+    <div class="notice" id="panelNotice"></div>
+
+    <div class="actions">
+      <button id="cancelBtn">取消</button>
+      <button id="saveBtn" class="primary">保存</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const messages = document.getElementById('messages');
 const input = document.getElementById('input');
 const sendBtn = document.getElementById('send');
 const ingestBtn = document.getElementById('ingest');
 const uploadBtn = document.getElementById('upload');
+const settingsBtn = document.getElementById('settingsBtn');
 const filePicker = document.getElementById('filePicker');
 const statusEl = document.getElementById('status');
+
+const overlay = document.getElementById('overlay');
+const keyInput = document.getElementById('keyInput');
+const chatModelInput = document.getElementById('chatModelInput');
+const embedModelInput = document.getElementById('embedModelInput');
+const embedDimInput = document.getElementById('embedDimInput');
+const topKInput = document.getElementById('topKInput');
+const saveBtn = document.getElementById('saveBtn');
+const cancelBtn = document.getElementById('cancelBtn');
+const panelNotice = document.getElementById('panelNotice');
 
 function setStatus(text) { statusEl.textContent = text; }
 
@@ -325,6 +447,79 @@ async function uploadFiles(fileList) {
   }
 }
 
+function showNotice(text) {
+  panelNotice.textContent = text;
+  panelNotice.classList.add('show');
+}
+
+function hideNotice() {
+  panelNotice.textContent = '';
+  panelNotice.classList.remove('show');
+}
+
+function fillForm(data) {
+  chatModelInput.value = data.chat_model || '';
+  embedModelInput.value = data.embed_model || '';
+  embedDimInput.value = data.embed_dim || '';
+  topKInput.value = data.top_k || '';
+  keyInput.value = '';
+  keyInput.placeholder = data.api_key_set
+    ? '已配置 ' + data.api_key_hint + '（留空则不修改）'
+    : '粘贴你的 API Key';
+  settingsBtn.classList.toggle('warn', !data.api_key_set);
+  settingsBtn.textContent = data.api_key_set ? '设置' : '设置 API';
+}
+
+function openSettings() {
+  hideNotice();
+  overlay.classList.add('open');
+  keyInput.focus();
+}
+
+function closeSettings() { overlay.classList.remove('open'); }
+
+async function loadSettings() {
+  try {
+    const resp = await fetch('/settings');
+    const data = await resp.json();
+    fillForm(data);
+    if (!data.api_key_set) {
+      openSettings();
+      addMessage('assistant', '还没有配置 API Key，请在上方的设置面板里填入后保存。');
+    }
+  } catch (err) {
+    setStatus('读取设置失败');
+  }
+}
+
+async function saveSettings() {
+  const payload = {
+    chat_model: chatModelInput.value.trim() || null,
+    embed_model: embedModelInput.value.trim() || null,
+    top_k: topKInput.value ? Number(topKInput.value) : null,
+    embed_dim: embedDimInput.value ? Number(embedDimInput.value) : null
+  };
+  const key = keyInput.value.trim();
+  if (key) payload.api_key = key;
+
+  saveBtn.disabled = true;
+  try {
+    const data = await postJSON('/settings', payload);
+    fillForm(data);
+    setStatus('已保存');
+    let text = '设置已保存' + (data.api_key_set ? '，API Key：' + data.api_key_hint : '') + '。';
+    if (data.needs_reindex) {
+      text += '\n注意：Embedding 模型或维度变了，旧索引已失效，请点「重建索引」。';
+    }
+    closeSettings();
+    addMessage('assistant', text);
+  } catch (err) {
+    showNotice('保存失败：' + err.message);
+  } finally {
+    saveBtn.disabled = false;
+  }
+}
+
 function autoGrow() {
   input.style.height = 'auto';
   input.style.height = Math.min(input.scrollHeight, 140) + 'px';
@@ -334,6 +529,13 @@ sendBtn.addEventListener('click', ask);
 ingestBtn.addEventListener('click', rebuildIndex);
 uploadBtn.addEventListener('click', () => filePicker.click());
 filePicker.addEventListener('change', () => uploadFiles(filePicker.files));
+settingsBtn.addEventListener('click', openSettings);
+cancelBtn.addEventListener('click', closeSettings);
+saveBtn.addEventListener('click', saveSettings);
+overlay.addEventListener('click', event => { if (event.target === overlay) closeSettings(); });
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape') closeSettings();
+});
 input.addEventListener('input', autoGrow);
 input.addEventListener('keydown', event => {
   if (event.key === 'Enter' && !event.shiftKey) {
@@ -354,6 +556,8 @@ window.addEventListener('drop', event => {
   document.body.classList.remove('dragover');
   uploadFiles(event.dataTransfer.files);
 });
+
+loadSettings();
 </script>
 </body>
 </html>

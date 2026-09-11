@@ -4,7 +4,7 @@ from dataclasses import replace
 
 from fastapi.testclient import TestClient
 
-from src import server
+from src import config, server
 from src.config import settings
 from src.generate import Answer
 from src.ingest import IngestReport
@@ -137,3 +137,71 @@ def test_upload_surfaces_ingest_errors(monkeypatch, tmp_path):
 
     assert response.status_code == 400
     assert "API Key" in response.json()["detail"]
+
+
+def _temp_env(monkeypatch, tmp_path):
+    """把 .env 指向临时文件，防止测试写到真实配置。"""
+    monkeypatch.setattr(config, "ENV_PATH", tmp_path / ".env")
+    monkeypatch.setattr(config, "ENV_EXAMPLE_PATH", tmp_path / ".env.example")
+    (tmp_path / ".env.example").write_text("TOP_K=5\n", encoding="utf-8")
+    return tmp_path / ".env"
+
+
+def test_get_settings_never_leaks_full_api_key(monkeypatch):
+    monkeypatch.setattr(settings, "api_key", "abcdefghijklmnop")
+
+    response = client.get("/settings")
+
+    assert response.status_code == 200
+    assert response.json()["api_key_hint"] == "abcd****mnop"
+    assert "abcdefghijklmnop" not in response.text
+
+
+def test_get_settings_reports_unset_key(monkeypatch):
+    monkeypatch.setattr(settings, "api_key", "")
+
+    body = client.get("/settings").json()
+
+    assert body["api_key_set"] is False
+    assert body["api_key_hint"] == ""
+
+
+def test_post_settings_persists_to_env_and_resets_client(monkeypatch, tmp_path):
+    env_path = _temp_env(monkeypatch, tmp_path)
+    resets = []
+    monkeypatch.setattr(server, "reset_client", lambda: resets.append(1))
+
+    response = client.post("/settings", json={"api_key": "k-123", "top_k": 9})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["api_key_set"] is True
+    assert body["top_k"] == 9
+    assert resets == [1], "保存后应清掉缓存的模型客户端"
+
+    env_text = env_path.read_text(encoding="utf-8")
+    assert "ZHIPUAI_API_KEY=k-123" in env_text
+    assert "TOP_K=9" in env_text
+
+
+def test_post_settings_flags_reindex_when_embedding_changes(monkeypatch, tmp_path):
+    _temp_env(monkeypatch, tmp_path)
+    monkeypatch.setattr(server, "reset_client", lambda: None)
+
+    body = client.post("/settings", json={"embed_dim": 2048}).json()
+
+    assert body["needs_reindex"] is True
+
+
+def test_post_settings_no_reindex_for_unrelated_change(monkeypatch, tmp_path):
+    _temp_env(monkeypatch, tmp_path)
+    monkeypatch.setattr(server, "reset_client", lambda: None)
+
+    body = client.post("/settings", json={"top_k": 3}).json()
+
+    assert body["needs_reindex"] is False
+
+
+def test_post_settings_rejects_out_of_range_values():
+    assert client.post("/settings", json={"top_k": 0}).status_code == 422
+    assert client.post("/settings", json={"embed_dim": 8}).status_code == 422

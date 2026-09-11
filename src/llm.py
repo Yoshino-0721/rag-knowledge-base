@@ -22,6 +22,11 @@ def get_client() -> OpenAI:
     return OpenAI(api_key=settings.require_api_key(), base_url=settings.base_url)
 
 
+def reset_client() -> None:
+    """清掉缓存的客户端。界面里改了 API Key 后调用，让新配置立即生效。"""
+    get_client.cache_clear()
+
+
 def embed_texts(
     texts: Sequence[str],
     client: OpenAI | None = None,
