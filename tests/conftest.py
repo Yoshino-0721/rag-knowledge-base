@@ -13,6 +13,7 @@ _TRACKED_FIELDS = (
     "embed_model",
     "embed_dim",
     "top_k",
+    "app_password",
 )
 
 
@@ -20,6 +21,7 @@ _TRACKED_FIELDS = (
 def restore_global_settings():
     """settings 是全局单例，用例改动后必须还原，避免互相污染。"""
     snapshot = {name: getattr(settings, name) for name in _TRACKED_FIELDS}
+    settings.app_password = ""  # 默认不启用访问口令，需要时由用例自行设置
     yield
     for name, value in snapshot.items():
         setattr(settings, name, value)

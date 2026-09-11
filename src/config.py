@@ -52,6 +52,12 @@ class Settings:
     chunk_size: int
     chunk_overlap: int
     top_k: int
+    app_password: str = ""
+
+    @property
+    def access_protected(self) -> bool:
+        """是否启用了访问口令。公网部署时建议开启，避免陌生人消耗你的 API Key。"""
+        return bool(self.app_password)
 
     @property
     def manifest_path(self) -> Path:
@@ -94,6 +100,7 @@ def load_settings() -> Settings:
         chunk_size=int(_get("CHUNK_SIZE", "800")),
         chunk_overlap=int(_get("CHUNK_OVERLAP", "120")),
         top_k=int(_get("TOP_K", "5")),
+        app_password=_get("APP_PASSWORD"),
     )
 
 

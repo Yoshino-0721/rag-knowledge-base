@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import base64
+import secrets
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -21,6 +23,39 @@ WEB_DIR = PROJECT_ROOT / "web"
 app = FastAPI(title="个人 RAG 知识库助手", version="0.1.0")
 
 _NO_HIT_ANSWER = "知识库中没有检索到相关内容。请先上传或放入文档并重建索引，再提问。"
+
+
+def _password_ok(request: Request) -> bool:
+    """未设置访问口令时一律放行；设置后校验 HTTP Basic 的密码部分。
+
+    用户名不校验，密码即 ``APP_PASSWORD``。这样公网部署时浏览器会弹出原生
+    登录框，无需在前端另写一套登录页。
+    """
+    expected = settings.app_password
+    if not expected:
+        return True
+
+    scheme, _, token = request.headers.get("authorization", "").partition(" ")
+    if scheme.lower() != "basic" or not token:
+        return False
+    try:
+        decoded = base64.b64decode(token, validate=True).decode("utf-8")
+    except (ValueError, UnicodeDecodeError):
+        return False
+
+    _, _, password = decoded.partition(":")
+    return secrets.compare_digest(password, expected)
+
+
+@app.middleware("http")
+async def require_password(request: Request, call_next):
+    if _password_ok(request):
+        return await call_next(request)
+    return Response(
+        content="需要访问口令",
+        status_code=401,
+        headers={"WWW-Authenticate": 'Basic realm="RAG Knowledge Base"'},
+    )
 
 
 class QueryRequest(BaseModel):

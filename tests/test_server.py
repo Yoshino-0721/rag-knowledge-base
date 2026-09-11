@@ -1,5 +1,6 @@
 """API 接口测试（检索、生成与建库均被替换，不产生真实调用）。"""
 
+import base64
 from dataclasses import replace
 
 from fastapi.testclient import TestClient

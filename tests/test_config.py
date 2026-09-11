@@ -111,3 +111,25 @@ def test_require_api_key_raises_with_actionable_message():
 
 def test_require_api_key_returns_key_when_set():
     assert _make_settings("k-1").require_api_key() == "k-1"
+
+
+def test_access_protected_flag_follows_password():
+    settings = _make_settings("k")
+
+    settings.app_password = "pw-123"
+    assert settings.access_protected is True
+
+    settings.app_password = ""
+    assert settings.access_protected is False
+
+
+def test_load_settings_reads_app_password(monkeypatch):
+    monkeypatch.setenv("APP_PASSWORD", "pw-456")
+
+    assert load_settings().app_password == "pw-456"
+
+
+def test_load_settings_defaults_app_password_to_empty(monkeypatch):
+    monkeypatch.delenv("APP_PASSWORD", raising=False)
+
+    assert load_settings().app_password == ""

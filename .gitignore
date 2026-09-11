@@ -13,6 +13,9 @@ data/*
 !data/.gitkeep
 storage/
 
+# 工作区记忆 / 本地智能体数据（不入库）
+.workbuddy/
+
 # 测试与覆盖率
 .pytest_cache/
 .coverage
