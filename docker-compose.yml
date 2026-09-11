@@ -1,0 +1,14 @@
+services:
+  rag:
+    build: .
+    image: rag-knowledge-base:latest
+    container_name: rag-knowledge-base
+    ports:
+      - "8000:8000"          # 公网部署可改为 "80:8000"
+    env_file:
+      - .env                 # 启动前请先 cp .env.example .env
+    volumes:
+      - ./data:/app/data         # 你的文档
+      - ./storage:/app/storage   # 向量库与索引清单，必须持久化
+      - ./.env:/app/.env         # 让网页「设置」面板的修改也能落盘
+    restart: unless-stopped
