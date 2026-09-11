@@ -702,6 +702,66 @@
   }
 
   /* ---------------- 响应式 ---------------- */
+  /* 引用卡片的双分数：Rerank 是排序依据，向量分保留作对照 */
+  .score { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+  .score .k {
+    font-size: 10.5px;
+    letter-spacing: .3px;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .score.rr { color: var(--accent); font-weight: 600; }
+  .score.rr .k { color: var(--accent); opacity: .75; }
+
+  /* 追问改写提示：让「检索用的问题」可见，方便核对改写是否合理 */
+  .rewritten {
+    display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap;
+    margin-top: 11px; padding-top: 10px;
+    border-top: 1px dashed var(--border);
+    font-size: 12px; color: var(--muted); line-height: 1.6;
+  }
+  .rewritten code {
+    font: 11.5px var(--mono);
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 5px;
+    padding: 1px 6px;
+    word-break: break-word;
+  }
+
+  /* 开关 */
+  .switch { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
+  .switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+  .switch .track {
+    position: relative;
+    flex-shrink: 0;
+    width: 34px; height: 20px;
+    margin-top: 1px;
+    border-radius: 999px;
+    background: var(--border-strong);
+    transition: background .18s;
+  }
+  .switch .track::after {
+    content: '';
+    position: absolute; top: 2px; left: 2px;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: var(--shadow-sm);
+    transition: transform .18s;
+  }
+  .switch input:checked + .track { background: var(--accent); }
+  .switch input:checked + .track::after { transform: translateX(14px); }
+  .switch input:focus-visible + .track { box-shadow: 0 0 0 3.5px var(--accent-soft); }
+  .switch-text { font-size: 12.5px; color: var(--text-2); font-weight: 500; line-height: 1.45; }
+  .switch-text em {
+    display: block;
+    margin-top: 2px;
+    font-size: 11.5px; font-style: normal; font-weight: 400;
+    color: var(--muted);
+  }
+  .field-gap { margin-top: 13px; }
+
   @media (max-width: 720px) {
     .app { padding: 0 12px; }
     .topbar { padding: 12px 0 11px; gap: 10px; }
@@ -771,6 +831,16 @@
         <span class="btn-label">重建索引</span>
       </button>
 
+      <button class="btn" id="clearBtn" title="清空对话" hidden>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 6h18"/><path d="M8 6V4h8v2"/>
+          <path d="M18.5 6.5 17.6 19a2 2 0 0 1-2 1.9H8.4a2 2 0 0 1-2-1.9L5.5 6.5"/>
+          <path d="M10 11v5.5M14 11v5.5"/>
+        </svg>
+        <span class="btn-label">清空对话</span>
+      </button>
+
       <button class="btn" id="settingsBtn" title="设置">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
              stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -799,7 +869,7 @@
       <ol class="steps">
         <li><b>配置</b><span>点右上角「设置」填入智谱 API Key（一次性）</span></li>
         <li><b>入库</b><span>上传或直接拖入 PDF / Word / PPT / Markdown</span></li>
-        <li><b>提问</b><span>在下方提问，答案会附带引用来源卡片</span></li>
+        <li><b>提问</b><span>提问即可，答案附带引用来源；接着追问「它的优势是什么」也没问题，会自动带上上下文</span></li>
       </ol>
 
       <div class="examples">
@@ -889,6 +959,36 @@
           <span>改动「Embedding 模型」或「向量维度」后，旧索引会失效，需点一次「重建索引」。</span>
         </div>
       </div>
+
+      <div class="section">
+        <p class="section-title">多轮对话</p>
+        <label class="switch">
+          <input type="checkbox" id="rewriteToggle">
+          <span class="track"></span>
+          <span class="switch-text">追问改写
+            <em>把「它的优势是什么」这类带指代的追问补全成完整问题后再去检索</em>
+          </span>
+        </label>
+        <div class="field field-gap">
+          <label for="historyTurnsInput">携带历史轮数（0 表示不记忆上下文）</label>
+          <input id="historyTurnsInput" type="number" min="0" max="50" placeholder="6">
+        </div>
+      </div>
+
+      <div class="section">
+        <p class="section-title">精排（Rerank）</p>
+        <label class="switch">
+          <input type="checkbox" id="rerankToggle">
+          <span class="track"></span>
+          <span class="switch-text">开启精排
+            <em>先向量宽召回，再用排序模型二次打分截取 Top-K；关掉只是精度降一档</em>
+          </span>
+        </label>
+        <div class="field field-gap">
+          <label for="rerankCandidatesInput">候选池大小（送入精排的条数，上限 128）</label>
+          <input id="rerankCandidatesInput" type="number" min="1" max="128" placeholder="20">
+        </div>
+      </div>
     </div>
 
     <div class="notice" id="panelNotice"></div>
@@ -925,6 +1025,16 @@ const saveBtn = document.getElementById('saveBtn');
 const cancelBtn = document.getElementById('cancelBtn');
 const closeBtn = document.getElementById('closeBtn');
 const panelNotice = document.getElementById('panelNotice');
+const clearBtn = document.getElementById('clearBtn');
+const rewriteToggle = document.getElementById('rewriteToggle');
+const historyTurnsInput = document.getElementById('historyTurnsInput');
+const rerankToggle = document.getElementById('rerankToggle');
+const rerankCandidatesInput = document.getElementById('rerankCandidatesInput');
+
+/* 对话上下文存在前端，服务端不保存会话 —— 重启服务也不丢，且天然支持多开标签页 */
+let conversation = [];
+// 客户端也只留最近若干轮，避免请求体无限膨胀；服务端还会按配置再裁一次
+const MAX_CLIENT_TURNS = 20;
 
 const ICON_FILE =
   '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
@@ -1038,9 +1148,54 @@ function addThinking() {
   return bubble;
 }
 
+/* ---------- 对话上下文 ---------- */
+function syncClearButton() {
+  clearBtn.hidden = conversation.length === 0;
+}
+
+function remember(role, content) {
+  conversation.push({ role, content });
+  const limit = MAX_CLIENT_TURNS * 2; // 一轮 = 一问一答
+  if (conversation.length > limit) conversation = conversation.slice(-limit);
+  syncClearButton();
+}
+
+function clearConversation() {
+  conversation = [];
+  messages.querySelectorAll('.msg').forEach(node => node.remove());
+  if (welcome) welcome.classList.remove('gone');
+  syncClearButton();
+  toast('已清空对话，下一问将不带上下文');
+}
+
+// 把「实际用于检索的问题」显示出来，方便核对追问改写是否符合原意
+function renderRewritten(bubble, standalone) {
+  const box = document.createElement('div');
+  box.className = 'rewritten';
+  box.innerHTML = '检索用的问题已改写为 <code>' + escapeHtml(standalone) + '</code>';
+  bubble.appendChild(box);
+}
+
 /* ---------- 引用卡片 ---------- */
+function meterHtml(pct, label) {
+  return '<span class="meter"><span class="meter-track">' +
+    '<i class="meter-fill" style="width:' + Math.max(6, Math.min(100, pct)) + '%"></i>' +
+    '</span>' + (label === undefined ? pct + '%' : label) + '</span>';
+}
+
+// Rerank 给的是没有上限的原始打分，展示成一位小数就够读了
+function fmtScore(value) {
+  return Number(value.toFixed(1));
+}
+
 function renderCitations(bubble, citations) {
   if (!citations || !citations.length) return;
+
+  // 原始打分没有固定量纲，进度条按本次最高分归一 —— 一眼看出这条相对最强的那条有多强
+  const rerankScores = citations
+    .map(item => (typeof item.rerank_score === 'number' ? item.rerank_score : null))
+    .filter(value => value !== null);
+  const topRerank = rerankScores.length ? Math.max(...rerankScores) : 0;
 
   const box = document.createElement('div');
   box.className = 'citations';
@@ -1052,6 +1207,7 @@ function renderCitations(bubble, citations) {
 
   for (const item of citations) {
     const pct = typeof item.score === 'number' ? Math.round(item.score * 100) : null;
+    const rr = typeof item.rerank_score === 'number' ? item.rerank_score : null;
 
     const details = document.createElement('details');
     details.className = 'cite';
@@ -1059,10 +1215,16 @@ function renderCitations(bubble, citations) {
     const summary = document.createElement('summary');
     let right = '';
     if (item.location) right += '<span class="cite-loc">' + escapeHtml(item.location) + '</span>';
+    // 精排分决定本次排序，用进度条强调；向量分退成文字，只做对照
+    if (rr !== null) {
+      const ratio = topRerank > 0 ? Math.round((rr / topRerank) * 100) : 100;
+      right += '<span class="score rr" title="Rerank 原始打分，进度条按本次最高分归一">' +
+        '<span class="k">Rerank</span>' + meterHtml(ratio, fmtScore(rr)) + '</span>';
+    }
     if (pct !== null) {
-      right += '<span class="meter"><span class="meter-track">' +
-        '<i class="meter-fill" style="width:' + Math.max(6, Math.min(100, pct)) + '%"></i>' +
-        '</span>' + pct + '%</span>';
+      right += rr === null
+        ? '<span class="score"><span class="k">相似度</span>' + meterHtml(pct) + '</span>'
+        : '<span class="score"><span class="k">向量</span>' + pct + '%</span>';
     }
     summary.innerHTML =
       '<span class="cite-idx">' + escapeHtml(item.index) + '</span>' +
@@ -1164,13 +1326,19 @@ async function ask() {
   const bubble = addThinking();
 
   try {
-    const data = await postJSON('/query', { question });
+    // 对话历史随请求带上，服务端不保存会话状态
+    const data = await postJSON('/query', { question, history: conversation });
     if (data.citations && data.citations.length) {
       bubble.innerHTML = renderRich(data.answer);
     } else {
       bubble.textContent = data.answer;
     }
+    if (data.rewritten && data.query) renderRewritten(bubble, data.query);
     renderCitations(bubble, data.citations);
+
+    // 记入上下文，下次追问才能带上
+    remember('user', question);
+    remember('assistant', data.answer);
     setStatus('就绪');
   } catch (err) {
     bubble.textContent = '出错了：' + err.message;
@@ -1245,7 +1413,12 @@ function fillForm(data) {
   chatModelInput.value = data.chat_model || '';
   embedModelInput.value = data.embed_model || '';
   embedDimInput.value = data.embed_dim || '';
-  topKInput.value = data.top_k || '';
+  topKInput.value = data.top_k ?? '';
+  // history_turns 的 0 是有意义的值（不记忆上下文），不能用 || 兜底
+  historyTurnsInput.value = data.history_turns ?? '';
+  rewriteToggle.checked = !!data.rewrite_enabled;
+  rerankToggle.checked = !!data.rerank_enabled;
+  rerankCandidatesInput.value = data.rerank_candidates ?? '';
   keyInput.value = '';
   keyInput.placeholder = data.api_key_set
     ? '已配置 ' + data.api_key_hint + '（留空则不修改）'
@@ -1281,7 +1454,14 @@ async function saveSettings() {
     chat_model: chatModelInput.value.trim() || null,
     embed_model: embedModelInput.value.trim() || null,
     top_k: topKInput.value ? Number(topKInput.value) : null,
-    embed_dim: embedDimInput.value ? Number(embedDimInput.value) : null
+    embed_dim: embedDimInput.value ? Number(embedDimInput.value) : null,
+    // 0 是合法值（不记忆上下文），所以只把「输入框为空」当作未修改
+    history_turns: historyTurnsInput.value === '' ? null : Number(historyTurnsInput.value),
+    rewrite_enabled: rewriteToggle.checked,
+    rerank_enabled: rerankToggle.checked,
+    rerank_candidates: rerankCandidatesInput.value
+      ? Number(rerankCandidatesInput.value)
+      : null
   };
   const key = keyInput.value.trim();
   if (key) payload.api_key = key;
@@ -1311,6 +1491,7 @@ function autoGrow() {
 
 sendBtn.addEventListener('click', ask);
 ingestBtn.addEventListener('click', rebuildIndex);
+clearBtn.addEventListener('click', clearConversation);
 uploadBtn.addEventListener('click', () => filePicker.click());
 filePicker.addEventListener('change', () => uploadFiles(filePicker.files));
 settingsBtn.addEventListener('click', openSettings);

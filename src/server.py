@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import secrets
 from pathlib import Path
+from typing import Literal
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, Response
@@ -12,17 +13,14 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from src.config import PROJECT_ROOT, apply_settings, settings
-from src.generate import generate
 from src.ingest import ingest
 from src.llm import reset_client
 from src.loaders import SUPPORTED_SUFFIXES
-from src.retrieve import search
+from src.pipeline import answer_question
 
 WEB_DIR = PROJECT_ROOT / "web"
 
 app = FastAPI(title="个人 RAG 知识库助手", version="0.1.0")
-
-_NO_HIT_ANSWER = "知识库中没有检索到相关内容。请先上传或放入文档并重建索引，再提问。"
 
 
 def _password_ok(request: Request) -> bool:
@@ -58,9 +56,17 @@ async def require_password(request: Request, call_next):
     )
 
 
+class ChatTurn(BaseModel):
+    """一轮对话历史，由前端带上，服务端不保存会话状态。"""
+
+    role: Literal["user", "assistant"]
+    content: str
+
+
 class QueryRequest(BaseModel):
     question: str
     top_k: int | None = Field(default=None, ge=1, le=50)
+    history: list[ChatTurn] | None = None
 
 
 class IngestRequest(BaseModel):
@@ -75,6 +81,10 @@ class SettingsRequest(BaseModel):
     embed_model: str | None = None
     embed_dim: int | None = Field(default=None, ge=16, le=4096)
     top_k: int | None = Field(default=None, ge=1, le=50)
+    history_turns: int | None = Field(default=None, ge=0, le=50)
+    rewrite_enabled: bool | None = None
+    rerank_enabled: bool | None = None
+    rerank_candidates: int | None = Field(default=None, ge=1, le=128)
 
 
 def _settings_state() -> dict:
@@ -87,6 +97,11 @@ def _settings_state() -> dict:
         "embed_model": settings.embed_model,
         "embed_dim": settings.embed_dim,
         "top_k": settings.top_k,
+        "history_turns": settings.history_turns,
+        "rewrite_enabled": settings.rewrite_enabled,
+        "rerank_enabled": settings.rerank_enabled,
+        "rerank_model": settings.rerank_model,
+        "rerank_candidates": settings.rerank_candidates,
         "data_dir": str(settings.data_dir),
     }
 
@@ -112,6 +127,10 @@ def update_settings_endpoint(payload: SettingsRequest) -> dict:
         embed_model=payload.embed_model,
         embed_dim=payload.embed_dim,
         top_k=payload.top_k,
+        history_turns=payload.history_turns,
+        rewrite_enabled=payload.rewrite_enabled,
+        rerank_enabled=payload.rerank_enabled,
+        rerank_candidates=payload.rerank_candidates,
     )
     reset_client()
 
@@ -164,15 +183,19 @@ def ingest_endpoint(payload: IngestRequest | None = None) -> dict:
 
 @app.post("/query")
 def query_endpoint(payload: QueryRequest) -> dict:
+    """问答接口。
+
+    会话状态由前端携带（``history``），服务端无状态 —— 这样重启服务
+    也不会丢上下文，且天然支持多开标签页。
+    """
     question = payload.question.strip()
     if not question:
         raise HTTPException(status_code=400, detail="问题不能为空")
 
+    history = [turn.model_dump() for turn in payload.history] if payload.history else None
+
     try:
-        hits = search(question, top_k=payload.top_k)
-        if not hits:
-            return {"answer": _NO_HIT_ANSWER, "citations": []}
-        return generate(question, hits).as_dict()
+        return answer_question(question, history=history, top_k=payload.top_k).as_dict()
     except RuntimeError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

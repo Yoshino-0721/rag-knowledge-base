@@ -133,3 +133,89 @@ def test_load_settings_defaults_app_password_to_empty(monkeypatch):
     monkeypatch.delenv("APP_PASSWORD", raising=False)
 
     assert load_settings().app_password == ""
+
+
+def test_rerank_url_joins_base_url_without_double_slash():
+    """rerank 不是 OpenAI 兼容协议，路径要自己拼，注意别拼出 //rerank。"""
+    assert _make_settings("k").rerank_url == "https://open.bigmodel.cn/api/paas/v4/rerank"
+
+
+def test_rerank_url_handles_base_url_without_trailing_slash():
+    settings = _make_settings("k")
+    settings.base_url = "https://open.bigmodel.cn/api/paas/v4"
+
+    assert settings.rerank_url == "https://open.bigmodel.cn/api/paas/v4/rerank"
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        ("true", True),
+        ("TRUE", True),
+        ("1", True),
+        ("yes", True),
+        ("on", True),
+        ("false", False),
+        ("0", False),
+        ("no", False),
+        ("随便写的", False),
+        # 空值等同于「没配」，应回退到默认值 true（与其它配置项语义一致）
+        ("", True),
+    ],
+)
+def test_load_settings_parses_boolean_env(monkeypatch, raw, expected):
+    monkeypatch.setenv("RERANK_ENABLED", raw)
+
+    assert load_settings().rerank_enabled is expected
+
+
+def test_load_settings_multi_turn_defaults(monkeypatch):
+    for name in (
+        "HISTORY_TURNS",
+        "QUERY_REWRITE",
+        "RERANK_ENABLED",
+        "RERANK_MODEL",
+        "RERANK_CANDIDATES",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
+    settings = load_settings()
+
+    assert settings.history_turns == 6
+    assert settings.rewrite_enabled is True
+    assert settings.rerank_enabled is True
+    assert settings.rerank_model == "rerank"
+    assert settings.rerank_candidates == 20
+
+
+def test_load_settings_reads_multi_turn_overrides(monkeypatch):
+    monkeypatch.setenv("HISTORY_TURNS", "3")
+    monkeypatch.setenv("QUERY_REWRITE", "false")
+    monkeypatch.setenv("RERANK_ENABLED", "false")
+    monkeypatch.setenv("RERANK_CANDIDATES", "50")
+
+    settings = load_settings()
+
+    assert settings.history_turns == 3
+    assert settings.rewrite_enabled is False
+    assert settings.rerank_enabled is False
+    assert settings.rerank_candidates == 50
+
+
+def test_apply_settings_writes_booleans_in_lowercase(temp_env):
+    """布尔值写进 .env 要便于手读，不能落成 Python 风格的 True / False。"""
+    config.apply_settings(rerank_enabled=False)
+
+    assert config.settings.rerank_enabled is False
+    assert "RERANK_ENABLED=false" in temp_env.read_text(encoding="utf-8")
+
+
+def test_apply_settings_updates_turn_and_rerank_fields(temp_env):
+    config.apply_settings(history_turns=0, rerank_candidates=8)
+
+    assert config.settings.history_turns == 0
+    assert config.settings.rerank_candidates == 8
+
+    text = temp_env.read_text(encoding="utf-8")
+    assert "HISTORY_TURNS=0" in text
+    assert "RERANK_CANDIDATES=8" in text

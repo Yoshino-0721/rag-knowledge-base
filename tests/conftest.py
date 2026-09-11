@@ -14,14 +14,30 @@ _TRACKED_FIELDS = (
     "embed_dim",
     "top_k",
     "app_password",
+    "history_turns",
+    "rewrite_enabled",
+    "rerank_enabled",
+    "rerank_model",
+    "rerank_candidates",
 )
+
+# 每个用例开始前强制回到这组基线值，避免受开发者本机 .env 影响
+_BASELINE = {
+    "app_password": "",
+    "history_turns": 6,
+    "rewrite_enabled": True,
+    "rerank_enabled": True,
+    "rerank_model": "rerank",
+    "rerank_candidates": 20,
+}
 
 
 @pytest.fixture(autouse=True)
 def restore_global_settings():
     """settings 是全局单例，用例改动后必须还原，避免互相污染。"""
     snapshot = {name: getattr(settings, name) for name in _TRACKED_FIELDS}
-    settings.app_password = ""  # 默认不启用访问口令，需要时由用例自行设置
+    for name, value in _BASELINE.items():
+        setattr(settings, name, value)
     yield
     for name, value in snapshot.items():
         setattr(settings, name, value)

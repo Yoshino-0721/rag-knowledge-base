@@ -29,12 +29,23 @@ FIELD_TO_ENV = {
     "embed_model": "EMBED_MODEL",
     "embed_dim": "EMBED_DIM",
     "top_k": "TOP_K",
+    "history_turns": "HISTORY_TURNS",
+    "rewrite_enabled": "QUERY_REWRITE",
+    "rerank_enabled": "RERANK_ENABLED",
+    "rerank_model": "RERANK_MODEL",
+    "rerank_candidates": "RERANK_CANDIDATES",
 }
+
+_TRUE_VALUES = {"1", "true", "yes", "on"}
 
 
 def _get(name: str, default: str = "") -> str:
     value = os.getenv(name)
     return value.strip() if value and value.strip() else default
+
+
+def _get_bool(name: str, default: str = "false") -> bool:
+    return _get(name, default).lower() in _TRUE_VALUES
 
 
 @dataclass
@@ -53,11 +64,27 @@ class Settings:
     chunk_overlap: int
     top_k: int
     app_password: str = ""
+    # 多轮对话
+    history_turns: int = 6
+    rewrite_enabled: bool = True
+    # 精排
+    rerank_enabled: bool = True
+    rerank_model: str = "rerank"
+    rerank_candidates: int = 20
 
     @property
     def access_protected(self) -> bool:
         """是否启用了访问口令。公网部署时建议开启，避免陌生人消耗你的 API Key。"""
         return bool(self.app_password)
+
+    @property
+    def rerank_url(self) -> str:
+        """精排接口地址。
+
+        智谱的 rerank 与对话 / 向量接口不同，**不是 OpenAI 兼容协议**，
+        需要自己在 base_url 后面拼 ``/rerank``。
+        """
+        return f"{self.base_url.rstrip('/')}/rerank"
 
     @property
     def manifest_path(self) -> Path:
@@ -101,6 +128,11 @@ def load_settings() -> Settings:
         chunk_overlap=int(_get("CHUNK_OVERLAP", "120")),
         top_k=int(_get("TOP_K", "5")),
         app_password=_get("APP_PASSWORD"),
+        history_turns=int(_get("HISTORY_TURNS", "6")),
+        rewrite_enabled=_get_bool("QUERY_REWRITE", "true"),
+        rerank_enabled=_get_bool("RERANK_ENABLED", "true"),
+        rerank_model=_get("RERANK_MODEL", "rerank"),
+        rerank_candidates=int(_get("RERANK_CANDIDATES", "20")),
     )
 
 
@@ -148,7 +180,10 @@ def apply_settings(**changes) -> Settings:
             if not value:
                 continue
         setattr(settings, field, value)
-        updates[env_name] = str(value)
+        # 布尔值写进 .env 时统一成 true / false，便于手工阅读
+        updates[env_name] = (
+            str(value).lower() if isinstance(value, bool) else str(value)
+        )
 
     if updates:
         save_env(updates)

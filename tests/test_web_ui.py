@@ -27,6 +27,7 @@ def test_required_element_ids_present():
         "send",
         "upload",
         "ingest",
+        "clearBtn",
         "settingsBtn",
         "filePicker",
         "status",
@@ -36,6 +37,10 @@ def test_required_element_ids_present():
         "embedModelInput",
         "embedDimInput",
         "topKInput",
+        "rewriteToggle",
+        "historyTurnsInput",
+        "rerankToggle",
+        "rerankCandidatesInput",
         "saveBtn",
         "cancelBtn",
     ]
@@ -84,3 +89,26 @@ def test_example_questions_are_wired():
     """空状态里的示例问题应带上可直接提问的 data-q。"""
     assert HTML.count('class="chip"') >= 3
     assert 'data-q=' in HTML
+
+
+def test_multi_turn_conversation_is_wired():
+    """多轮对话：上下文要由前端携带，并提供清空入口。"""
+    assert "conversation" in HTML
+    assert "remember(" in HTML
+    assert "clearConversation" in HTML
+    # 提问时必须把历史一起发出去
+    assert "history: conversation" in HTML
+
+
+def test_rewrite_hint_is_rendered():
+    """追问改写是隐性能力，必须把「实际检索用的问题」显示出来才看得见。"""
+    assert "renderRewritten" in HTML
+    assert "rewritten" in HTML and "data.query" in HTML
+    assert "检索用的问题已改写为" in HTML
+
+
+def test_rerank_score_is_visible():
+    """精排是这一版的核心卖点，前端要能看到它真的起了作用。"""
+    assert "rerank_score" in HTML
+    assert "Rerank" in HTML
+    assert "向量" in HTML  # 向量分保留作对照

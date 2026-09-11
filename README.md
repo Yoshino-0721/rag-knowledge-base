@@ -3,7 +3,7 @@
 ![Python](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?logo=fastapi&logoColor=white)
 ![ChromaDB](https://img.shields.io/badge/ChromaDB-local-FF6B6B)
-![Tests](https://img.shields.io/badge/tests-82%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-162%20passed-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
 把散落在本机的 PDF、Word、PPT、Markdown 变成**可溯源**的问答知识库。
@@ -19,8 +19,9 @@ PDF 精确到页码、PPT 到页序，还会给出相似度。**能核对，才�
 和「UDP 与 TCP 协议核心特性对比」。
 
 - **答案严格依据原文**：模型只在召回片段范围内组织回答，每条结论都带 `[1]` 引用编号
-- **引用可核对**：下方「引用来源 · 5 条」按相似度从高到低列出命中片段，
-  标注 `文件名 · 页码 · 相似度`（如 `FX.pdf · 第 2 页 · 63%`），展开即可看到原文
+- **引用可核对**：下方「引用来源 · 5 条」列出命中片段，标注 `文件名 · 页码 · 分数`，
+  展开即可看到原文。开启精排后每条会显示两个分数 —— `Rerank 96%`（本次排序依据）
+  与 `向量 63%`（语义相似度，留作对照）
 - **增量索引生效**：顶部「建库报告」显示这份 PDF 未改动，所以是 `0 新增 / 1 未变化`，
   重复上传不会浪费 embedding 额度
 
@@ -42,6 +43,9 @@ PDF 精确到页码、PPT 到页序，还会给出相似度。**能核对，才�
 | 向量化入库 | 调用智谱 `embedding-3` 生成向量，持久化到本地 ChromaDB |
 | 增量索引 | 按文件内容 SHA-256 判断变化，只重建新增/修改的文件，自动清理已删除文件 |
 | 相似度检索 | Top-K 余弦相似度召回，K 值可调 |
+| 精排（Rerank） | 先宽召回一批候选，再用智谱 `rerank` 模型二次打分截取 Top-K。取**原始打分** —— 接口默认给的归一化分在候选彼此都相关时会一起饱和到 `1.0`，完全看不出高下；引用卡片同时显示 Rerank 分与向量分 |
+| 多轮对话 | 上下文由前端携带（服务端无状态，重启不丢）；追问「它的优势是什么」也接得上 |
+| 追问改写 | 带指代的追问先用模型补全成可独立检索的问题再去查库，并把改写结果显示在答案下方 |
 | 基于上下文的生成 | 召回片段按编号拼进 Prompt，要求模型"看着材料回答"、不得编造 |
 | 来源引用 | 回答里的 `[1]` 渲染成引用角标；引用卡片显示文件、页码、相似度进度条，可展开原文并一键复制 |
 | 答案渲染 | 轻度 Markdown（标题 / 有序无序列表 / 行内代码 / 粗体），文档内容全部转义后再渲染 |
@@ -59,11 +63,15 @@ flowchart LR
     C --> D["向量化<br/>embedding-3"]
     D --> E[("ChromaDB<br/>本地持久化")]
 
-    Q["用户提问"] --> R["向量检索<br/>Top-K 余弦相似度"]
+    Q["用户提问"] --> RW["追问改写<br/>rewrite.py<br/>结合历史补全指代"]
+    H2["对话历史"] -.-> RW
+    H2 -.-> G
+    RW --> R["向量宽召回<br/>候选池"]
     E --> R
-    R --> G["拼 Prompt<br/>片段带编号注入"]
+    R --> RR["精排 Rerank<br/>二次打分"]
+    RR --> G["拼 Prompt<br/>片段带编号注入"]
     G --> H["GLM 生成<br/>强制标注来源"]
-    H --> I["答案 + 引用卡片"]
+    H --> I["答案 + 引用卡片<br/>Rerank 分 + 向量分"]
 ```
 
 **增量索引**：每个文件算 SHA-256 存进 `storage/manifest.json`，入库前比对，
@@ -76,9 +84,10 @@ flowchart LR
 | 后端 | FastAPI（自带 Swagger 文档，访问 `/docs`） |
 | 向量库 | ChromaDB（本地持久化，零运维） |
 | 大模型 / Embedding | 智谱 GLM（OpenAI 兼容接口，一个 Key 通用） |
+| 精排 | 智谱 `rerank`（**非** OpenAI 兼容协议，直接发 HTTP 请求，复用同一个 Key） |
 | 文档解析 | PyMuPDF / python-docx / python-pptx / 原生读取 |
 | 前端 | 原生 HTML + JS，无需构建 |
-| 测试 | pytest（82 项） |
+| 测试 | pytest（162 项） |
 
 > 说明：**未引入 LangChain**。本项目链路只有「检索 → 拼 Prompt → 调用模型」，
 > 原生实现更短更透明、出错好定位；等将来需要多路检索或 Agent 编排时再评估。
@@ -94,7 +103,9 @@ flowchart LR
 │  ├─ llm.py         # 智谱 Embedding 与 Chat 调用
 │  ├─ store.py       # Chroma 集合管理
 │  ├─ ingest.py      # 建库流水线 + 增量索引
-│  ├─ retrieve.py    # Top-K 检索
+│  ├─ retrieve.py    # 向量召回 + 精排重排序
+│  ├─ rewrite.py     # 追问改写：把指代补全成可独立检索的问题
+│  ├─ pipeline.py    # 编排：改写 → 召回精排 → 生成
 │  ├─ generate.py    # Prompt 组装与带引用生成
 │  └─ server.py      # FastAPI 接口
 ├─ web/index.html    # 前端聊天界面 + 设置面板
@@ -165,6 +176,11 @@ docker compose up -d --build
 | `CHUNK_SIZE` | `800` | 分块最大字符数 |
 | `CHUNK_OVERLAP` | `120` | 相邻块重叠字符数 |
 | `TOP_K` | `5` | 默认召回条数 |
+| `HISTORY_TURNS` | `6` | 多轮对话携带的历史轮数，`0` 表示不记忆上下文 |
+| `QUERY_REWRITE` | `true` | 追问改写开关 |
+| `RERANK_ENABLED` | `true` | 精排开关；关掉也能用，只是召回精度降一档 |
+| `RERANK_MODEL` | `rerank` | 精排模型编码 |
+| `RERANK_CANDIDATES` | `20` | 送入精排的候选条数（接口上限 128） |
 
 ## 接口
 
@@ -176,7 +192,7 @@ docker compose up -d --build
 | POST | `/settings` | 保存配置并写回 `.env`，立即生效 |
 | POST | `/upload` | 上传文档（multipart，字段名 `files`），自动增量建库 |
 | POST | `/ingest` | 重建索引，body `{"force": false}`；`force=true` 全量重建 |
-| POST | `/query` | 提问，body `{"question": "...", "top_k": 5}` |
+| POST | `/query` | 提问，body `{"question": "...", "top_k": 5, "history": [{"role": "user", "content": "..."}]}`；返回 `answer`、`citations`、`query`（实际用于检索的问题）、`rewritten`（是否发生改写） |
 
 ## 测试
 
@@ -184,11 +200,11 @@ docker compose up -d --build
 pytest
 ```
 
-82 项测试全部使用桩对象，不发起真实 API 调用，也不会改动真实的 `.env`。
+162 项测试全部使用桩对象，不发起真实 API 调用，也不会改动真实的 `.env`。
 
 ## 后续规划（V2+）
 
-- 混合检索（BM25 + 向量）与 Rerank 重排
+- 接入 Agent 工具（查天气、发邮件等），从"只读知识库"扩展到"能动手做事"
+- 混合检索（BM25 + 向量），补齐关键词精确匹配的短板
 - 元数据过滤（按文件 / 标签 / 时间）
-- 多轮对话与追问改写
 - 文档管理界面（列表、删除、重新索引）

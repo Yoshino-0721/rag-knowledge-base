@@ -1,6 +1,16 @@
-"""回答组装测试：上下文编号、消息构造与引用格式（不调用真实 API）。"""
+"""回答组装测试：上下文编号、消息构造、历史裁剪与引用格式（不调用真实 API）。"""
 
-from src.generate import build_citations, build_context, build_messages, generate
+from __future__ import annotations
+
+import src.generate as generate_module
+from src.config import settings
+from src.generate import (
+    build_citations,
+    build_context,
+    build_messages,
+    generate,
+    normalize_history,
+)
 from src.retrieve import Hit
 
 HITS = [
@@ -57,5 +67,101 @@ def test_build_citations_matches_input_order():
 def test_answer_as_dict_shape():
     payload = generate("问题", HITS, chat_fn=lambda _: "回答").as_dict()
 
-    assert set(payload) == {"answer", "citations"}
+    assert set(payload) == {"answer", "citations", "query", "rewritten"}
     assert payload["answer"] == "回答"
+
+
+# ---------- 多轮对话历史 ----------
+
+
+HISTORY = [
+    {"role": "user", "content": "前一个问题"},
+    {"role": "assistant", "content": "前一个回答 [1]。"},
+]
+
+
+def test_build_messages_inserts_history_between_system_and_question():
+    messages = build_messages("追问", HITS, HISTORY)
+
+    assert [m["role"] for m in messages] == ["system", "user", "assistant", "user"]
+    assert messages[1]["content"] == "前一个问题"
+    assert messages[2]["content"] == "前一个回答 [1]。"
+    assert "追问" in messages[-1]["content"]
+    assert "参考资料" in messages[-1]["content"]
+
+
+def test_generate_passes_history_into_messages():
+    captured = {}
+
+    def fake_chat(messages):
+        captured["messages"] = messages
+        return "回答"
+
+    generate("追问", HITS, HISTORY, chat_fn=fake_chat)
+
+    assert [m["role"] for m in captured["messages"]] == [
+        "system",
+        "user",
+        "assistant",
+        "user",
+    ]
+
+
+def test_normalize_history_handles_missing_input():
+    assert normalize_history(None) == []
+    assert normalize_history([]) == []
+
+
+def test_normalize_history_filters_invalid_entries():
+    cleaned = normalize_history(
+        [
+            {"role": "user", "content": "有效"},
+            {"role": "system", "content": "系统消息不该进历史"},
+            {"role": "assistant", "content": "   "},
+            {"role": "USER", "content": "角色大小写应被归一"},
+            "不是字典",
+            {"content": "缺 role"},
+        ]
+    )
+
+    assert cleaned == [
+        {"role": "user", "content": "有效"},
+        {"role": "user", "content": "角色大小写应被归一"},
+    ]
+
+
+def test_normalize_history_keeps_only_recent_turns(monkeypatch):
+    monkeypatch.setattr(settings, "history_turns", 2)
+    history = [
+        {"role": "user", "content": "第1问"},
+        {"role": "assistant", "content": "第1答"},
+        {"role": "user", "content": "第2问"},
+        {"role": "assistant", "content": "第2答"},
+        {"role": "user", "content": "第3问"},
+        {"role": "assistant", "content": "第3答"},
+    ]
+
+    cleaned = normalize_history(history)
+
+    assert [m["content"] for m in cleaned] == ["第2问", "第2答", "第3问", "第3答"]
+
+
+def test_normalize_history_zero_turns_disables_memory(monkeypatch):
+    """0 表示「不记忆上下文」，别写成 cleaned[-0:] 反而把全部历史留下。"""
+    monkeypatch.setattr(settings, "history_turns", 0)
+
+    assert normalize_history([{"role": "user", "content": "内容"}]) == []
+
+
+def test_normalize_history_respects_char_budget(monkeypatch):
+    monkeypatch.setattr(settings, "history_turns", 10)
+    monkeypatch.setattr(generate_module, "MAX_HISTORY_CHARS", 10)
+
+    cleaned = normalize_history(
+        [
+            {"role": "user", "content": "一" * 8},
+            {"role": "assistant", "content": "二" * 8},
+        ]
+    )
+
+    assert cleaned == [{"role": "assistant", "content": "二" * 8}], "只保留能塞进预算的最近消息"

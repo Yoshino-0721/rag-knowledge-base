@@ -6,5 +6,6 @@ pymupdf>=1.24.0
 python-docx>=1.1.0
 python-pptx>=1.0.0
 python-dotenv>=1.0.0
-pytest>=8.0.0
+# Rerank 接口不是 OpenAI 兼容协议，需要直接发 HTTP 请求
 httpx>=0.27.0
+pytest>=8.0.0
