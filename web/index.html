@@ -2,287 +2,892 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light">
+<meta name="description" content="个人 RAG 知识库助手 —— 基于本地文档的可溯源问答系统">
 <title>个人 RAG 知识库助手</title>
 <style>
   :root {
-    --bg: #F7F7F5;
+    --bg: #F4F5F8;
     --surface: #FFFFFF;
-    --border: #E3E2DE;
-    --text: #2C2C2A;
-    --muted: #6B6A66;
-    --accent: #534AB7;
-    --accent-soft: #EEEDFE;
-    --danger: #A32D2D;
-    --radius: 12px;
+    --surface-2: #FAFBFC;
+    --border: #E5E7EB;
+    --border-strong: #D8DCE3;
+    --text: #15171C;
+    --text-2: #4A5057;
+    --muted: #878E99;
+    --accent: #4F46E5;
+    --accent-2: #7C3AED;
+    --accent-hover: #4338CA;
+    --accent-soft: #EEF0FF;
+    --accent-border: #C9CEF8;
+    --success: #15803D;
+    --success-soft: #E8F7EE;
+    --warn: #B45309;
+    --warn-soft: #FDF4E7;
+    --danger: #B42318;
+    --danger-soft: #FEECEB;
+    --radius: 14px;
+    --radius-sm: 10px;
+    --shadow-sm: 0 1px 2px rgba(16, 24, 40, .05);
+    --shadow-md: 0 4px 16px rgba(16, 24, 40, .07);
+    --shadow-lg: 0 16px 48px rgba(16, 24, 40, .16);
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
   }
+
   * { box-sizing: border-box; }
+
+  html, body { height: 100%; }
+
   body {
     margin: 0;
     background: var(--bg);
     color: var(--text);
-    font: 14px/1.6 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+    font: 14px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+          "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
+
+  button { font: inherit; cursor: pointer; }
+  a { color: var(--accent); }
+
+  /* ---------------- 布局 ---------------- */
   .app {
-    max-width: 860px;
+    max-width: 920px;
     margin: 0 auto;
-    height: 100vh;
+    height: 100dvh;
     display: flex;
     flex-direction: column;
     padding: 0 20px;
   }
-  header {
+
+  /* ---------------- 顶栏 ---------------- */
+  .topbar {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 18px 0 14px;
-    border-bottom: 0.5px solid var(--border);
+    gap: 14px;
+    padding: 16px 0 14px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
   }
-  header h1 { font-size: 15px; font-weight: 500; margin: 0; margin-right: auto; }
-  header .status { font-size: 12px; color: var(--muted); min-width: 64px; text-align: right; }
-  header button {
-    font: inherit;
-    padding: 6px 14px;
-    border-radius: 8px;
-    border: 0.5px solid var(--border);
+
+  .brand { display: flex; align-items: center; gap: 11px; margin-right: auto; min-width: 0; }
+
+  .logo {
+    width: 38px;
+    height: 38px;
+    border-radius: 11px;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+    display: grid;
+    place-items: center;
+    color: #fff;
+    box-shadow: 0 3px 10px rgba(79, 70, 229, .28);
+    flex-shrink: 0;
+  }
+
+  .brand-text { min-width: 0; }
+  .brand-text h1 {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -.01em;
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .brand-text .tagline {
+    margin: 1px 0 0;
+    font-size: 11.5px;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .topbar-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-2);
     background: var(--surface);
-    color: var(--text);
-    cursor: pointer;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 5px 11px;
+    white-space: nowrap;
   }
-  header button:hover { border-color: var(--accent); color: var(--accent); }
-  header button:disabled { opacity: 0.5; cursor: not-allowed; }
-  header button.warn { border-color: var(--danger); color: var(--danger); }
+  .pill .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--success);
+    box-shadow: 0 0 0 3px var(--success-soft);
+    flex-shrink: 0;
+  }
+  .pill.busy .dot { background: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); animation: pulse 1.1s ease-in-out infinite; }
+  .pill.err  .dot { background: var(--danger); box-shadow: 0 0 0 3px var(--danger-soft); }
+  @keyframes pulse { 50% { opacity: .35; transform: scale(.82); } }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 13px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-2);
+    font-size: 13px;
+    box-shadow: var(--shadow-sm);
+    transition: border-color .15s, color .15s, background .15s, transform .1s;
+  }
+  .btn:hover:not(:disabled) { border-color: var(--accent-border); color: var(--accent); background: var(--accent-soft); }
+  .btn:active:not(:disabled) { transform: translateY(1px); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.primary:hover:not(:disabled) { background: var(--accent-hover); color: #fff; }
+  .btn.warn { border-color: #F0C9A0; color: var(--warn); background: var(--warn-soft); }
+  .btn svg { flex-shrink: 0; }
+
+  /* ---------------- 消息区 ---------------- */
   main {
     flex: 1;
     overflow-y: auto;
-    padding: 20px 0;
+    overscroll-behavior: contain;
+    padding: 22px 0;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 18px;
   }
-  .hint {
-    border: 0.5px dashed var(--border);
-    border-radius: var(--radius);
-    padding: 14px 16px;
-    color: var(--muted);
+  main::-webkit-scrollbar { width: 8px; }
+  main::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
+  main::-webkit-scrollbar-track { background: transparent; }
+
+  /* 空状态 */
+  .welcome {
+    margin: auto;
+    max-width: 560px;
+    text-align: center;
+    padding: 8px 0 12px;
+    animation: fadeUp .35s ease both;
+  }
+  .welcome.gone { display: none; }
+  .welcome-icon {
+    width: 54px; height: 54px;
+    margin: 0 auto 16px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+    display: grid; place-items: center;
+    color: #fff;
+    box-shadow: 0 8px 22px rgba(79, 70, 229, .26);
+  }
+  .welcome h2 { font-size: 19px; font-weight: 600; letter-spacing: -.015em; margin: 0 0 7px; }
+  .welcome > p { margin: 0 0 22px; color: var(--muted); font-size: 13.5px; }
+
+  .steps {
+    list-style: none;
+    margin: 0 0 22px;
+    padding: 0;
+    display: grid;
+    gap: 8px;
+    text-align: left;
+  }
+  .steps li {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 13px;
     font-size: 13px;
+    color: var(--text-2);
+    box-shadow: var(--shadow-sm);
   }
-  .hint code {
+  .steps li b {
+    flex-shrink: 0;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 6px;
+    padding: 2px 7px;
+  }
+
+  .examples { text-align: left; }
+  .examples-label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    border: 1px solid var(--accent-border);
     background: var(--accent-soft);
     color: var(--accent);
-    padding: 1px 6px;
-    border-radius: 5px;
-    font-size: 12px;
+    border-radius: 999px;
+    padding: 6px 13px;
+    font-size: 12.5px;
+    transition: background .15s, transform .1s;
   }
-  .msg { display: flex; }
+  .chip:hover { background: #E3E6FF; }
+  .chip:active { transform: translateY(1px); }
+
+  .formats {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: .01em;
+  }
+
+  /* 消息 */
+  .msg { display: flex; gap: 10px; animation: fadeUp .3s ease both; }
   .msg.user { justify-content: flex-end; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } }
+
+  .avatar {
+    width: 28px; height: 28px;
+    border-radius: 9px;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+    display: grid; place-items: center;
+    color: #fff;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
   .bubble {
     max-width: 82%;
     padding: 12px 16px;
     border-radius: var(--radius);
-    white-space: pre-wrap;
     word-break: break-word;
+    font-size: 14px;
   }
-  .msg.user .bubble { background: var(--accent); color: #fff; }
+  .msg.user .bubble {
+    background: var(--accent);
+    color: #fff;
+    border-bottom-right-radius: 5px;
+    box-shadow: 0 2px 10px rgba(79, 70, 229, .22);
+  }
   .msg.assistant .bubble {
     background: var(--surface);
-    border: 0.5px solid var(--border);
-    max-width: 100%;
+    border: 1px solid var(--border);
+    border-bottom-left-radius: 5px;
+    box-shadow: var(--shadow-sm);
     width: 100%;
+    max-width: 100%;
   }
-  .citations { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
-  .citations .label { font-size: 12px; color: var(--muted); }
-  details {
-    border: 0.5px solid var(--border);
-    border-radius: 8px;
-    background: var(--bg);
-    padding: 8px 12px;
+
+  .bubble > p { margin: 0 0 9px; }
+  .bubble > p:last-child { margin-bottom: 0; }
+  .bubble strong { font-weight: 600; }
+  .bubble code {
+    font: 12.5px/1.5 var(--mono);
+    background: var(--accent-soft);
+    color: var(--accent-hover);
+    padding: 1.5px 5px;
+    border-radius: 5px;
+    word-break: break-all;
   }
-  details summary {
-    cursor: pointer;
-    font-size: 12px;
+  .bubble ul { margin: 6px 0 9px; padding-left: 20px; }
+  .bubble li { margin-bottom: 3px; }
+  .bubble .h { font-weight: 600; margin: 12px 0 7px; }
+  .bubble .h:first-child { margin-top: 0; }
+
+  .cite-ref {
+    display: inline-grid;
+    place-items: center;
+    min-width: 17px;
+    height: 17px;
+    padding: 0 4px;
+    margin: 0 1px;
+    font-size: 10.5px;
+    font-weight: 600;
+    line-height: 1;
     color: var(--accent);
+    background: var(--accent-soft);
+    border: 1px solid var(--accent-border);
+    border-radius: 5px;
+    vertical-align: 1.5px;
+  }
+
+  /* 加载动画 */
+  .dots { display: inline-flex; gap: 4px; align-items: center; padding: 3px 0; }
+  .dots i {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent-border);
+    animation: blink 1.25s ease-in-out infinite;
+  }
+  .dots i:nth-child(2) { animation-delay: .18s; }
+  .dots i:nth-child(3) { animation-delay: .36s; }
+  @keyframes blink { 0%, 60%, 100% { opacity: .28; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-3px); } }
+
+  /* 建库报告 */
+  .report-head {
+    display: flex; align-items: center; gap: 7px;
+    font-weight: 600; margin-bottom: 11px;
+  }
+  .report-head .tick {
+    width: 18px; height: 18px; border-radius: 50%;
+    background: var(--success-soft); color: var(--success);
+    display: grid; place-items: center; flex-shrink: 0;
+  }
+  .report-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(66px, 1fr));
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+  .stat {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 9px 6px;
+    text-align: center;
+  }
+  .stat b { display: block; font-size: 17px; font-weight: 600; letter-spacing: -.02em; }
+  .stat span { font-size: 11px; color: var(--muted); }
+  .stat.on b { color: var(--accent); }
+  .report-note { margin-top: 10px; font-size: 12.5px; color: var(--muted); }
+
+  /* ---------------- 引用卡片 ---------------- */
+  .citations { margin-top: 14px; padding-top: 13px; border-top: 1px dashed var(--border); }
+  .citations .label {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 11.5px; font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    margin-bottom: 9px;
+  }
+  .citations .label::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+
+  .cite {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    margin-bottom: 8px;
+    overflow: hidden;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .cite:last-child { margin-bottom: 0; }
+  .cite[open] { border-color: var(--accent-border); background: var(--surface); box-shadow: var(--shadow-sm); }
+  .cite summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    gap: 9px;
     outline: none;
   }
-  details summary .src { color: var(--text); font-weight: 500; }
-  details summary .loc { color: var(--muted); }
-  details pre {
-    margin: 10px 0 2px;
-    white-space: pre-wrap;
-    word-break: break-word;
-    font: 12px/1.6 inherit;
+  .cite summary::-webkit-details-marker { display: none; }
+
+  .cite-idx {
+    flex-shrink: 0;
+    width: 20px; height: 20px;
+    border-radius: 6px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 11px; font-weight: 600;
+    display: grid; place-items: center;
+  }
+  .cite-main { min-width: 0; flex: 1; }
+  .cite-src {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 13px; font-weight: 500;
+    color: var(--text);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .cite-src svg { color: var(--muted); flex-shrink: 0; }
+  .cite-meta {
+    display: flex; align-items: center; gap: 8px;
+    margin-top: 4px;
+    font-size: 11.5px;
     color: var(--muted);
   }
-  footer {
-    padding: 14px 0 20px;
-    border-top: 0.5px solid var(--border);
+  .cite-loc {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-radius: 5px;
+    padding: 1px 6px;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+  .meter {
+    display: inline-flex; align-items: center; gap: 6px;
+    white-space: nowrap;
+  }
+  .meter-track {
+    width: 54px; height: 4px;
+    border-radius: 2px;
+    background: var(--border);
+    overflow: hidden;
+  }
+  .meter-fill {
+    display: block; height: 100%;
+    border-radius: 2px;
+    background: linear-gradient(90deg, var(--accent) 0%, var(--accent-2) 100%);
+  }
+  .chev { color: var(--muted); flex-shrink: 0; transition: transform .2s; }
+  .cite[open] .chev { transform: rotate(90deg); }
+
+  .cite-body { padding: 0 12px 12px; }
+  .cite-body pre {
+    margin: 0;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font: 12.5px/1.65 var(--mono);
+    color: var(--text-2);
+    max-height: 260px;
+    overflow-y: auto;
+  }
+  .cite-body .bar { display: flex; justify-content: flex-end; margin-top: 8px; }
+  .copy-btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11.5px;
+    color: var(--muted);
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 4px 9px;
+    transition: color .15s, border-color .15s;
+  }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent-border); }
+
+  /* ---------------- 输入区 ---------------- */
+  .composer { flex-shrink: 0; padding: 14px 0 18px; border-top: 1px solid var(--border); }
+  .composer-box {
     display: flex;
-    gap: 10px;
     align-items: flex-end;
+    gap: 8px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 7px 7px 7px 14px;
+    box-shadow: var(--shadow-sm);
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .composer-box:focus-within {
+    border-color: var(--accent-border);
+    box-shadow: 0 0 0 3.5px var(--accent-soft);
   }
   textarea {
     flex: 1;
     resize: none;
-    font: inherit;
-    padding: 11px 14px;
-    border: 0.5px solid var(--border);
-    border-radius: var(--radius);
-    background: var(--surface);
-    color: var(--text);
-    outline: none;
-    max-height: 140px;
-  }
-  textarea:focus { border-color: var(--accent); }
-  #send {
-    font: inherit;
-    padding: 11px 22px;
     border: none;
-    border-radius: var(--radius);
+    outline: none;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    line-height: 1.6;
+    padding: 5px 0;
+    max-height: 140px;
+    min-height: 26px;
+  }
+  textarea::placeholder { color: var(--muted); }
+
+  .send-btn {
+    flex-shrink: 0;
+    width: 34px; height: 34px;
+    border: none;
+    border-radius: 9px;
     background: var(--accent);
     color: #fff;
-    cursor: pointer;
+    display: grid; place-items: center;
+    transition: background .15s, transform .1s, opacity .15s;
   }
-  #send:disabled { opacity: 0.5; cursor: not-allowed; }
+  .send-btn:hover:not(:disabled) { background: var(--accent-hover); }
+  .send-btn:active:not(:disabled) { transform: scale(.94); }
+  .send-btn:disabled { opacity: .4; cursor: not-allowed; }
 
+  .composer-hint {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 8px;
+    padding: 0 3px;
+    font-size: 11.5px;
+    color: var(--muted);
+  }
+  .composer-hint kbd {
+    font: 11px var(--mono);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    padding: .5px 5px;
+    color: var(--text-2);
+  }
+
+  /* ---------------- 设置面板 ---------------- */
   .overlay {
     position: fixed;
     inset: 0;
-    background: rgba(44, 44, 42, 0.32);
+    background: rgba(21, 23, 28, .38);
+    backdrop-filter: blur(3px);
     display: none;
     align-items: center;
     justify-content: center;
-    padding: 24px;
-    z-index: 20;
+    padding: 20px;
+    z-index: 30;
   }
-  .overlay.open { display: flex; }
+  .overlay.open { display: flex; animation: fadeUp .18s ease both; }
+
   .panel {
     background: var(--surface);
-    border-radius: 16px;
+    border-radius: 18px;
     width: 100%;
-    max-width: 460px;
+    max-width: 480px;
     max-height: 100%;
     overflow-y: auto;
-    padding: 22px 24px 20px;
+    box-shadow: var(--shadow-lg);
+    animation: pop .22s cubic-bezier(.2, .9, .3, 1.1) both;
   }
-  .panel h2 { font-size: 15px; font-weight: 500; margin: 0 0 4px; }
-  .panel .sub { font-size: 12px; color: var(--muted); margin-bottom: 18px; }
-  .field { margin-bottom: 14px; }
-  .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px; }
+  @keyframes pop { from { opacity: 0; transform: scale(.96) translateY(8px); } }
+
+  .panel-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 20px 22px 15px;
+    border-bottom: 1px solid var(--border);
+  }
+  .panel-head h2 { font-size: 15.5px; font-weight: 600; margin: 0 0 3px; }
+  .panel-head .sub { font-size: 12.5px; color: var(--muted); margin: 0; }
+  .panel-head .sub code {
+    font: 12px var(--mono);
+    background: var(--accent-soft);
+    color: var(--accent-hover);
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+  .icon-btn {
+    margin-left: auto;
+    flex-shrink: 0;
+    width: 28px; height: 28px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--muted);
+    display: grid; place-items: center;
+    transition: color .15s, border-color .15s;
+  }
+  .icon-btn:hover { color: var(--text); border-color: var(--border-strong); }
+
+  .panel-body { padding: 18px 22px 4px; }
+
+  .section-title {
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    margin: 0 0 11px;
+  }
+  .section + .section { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--border); }
+
+  .field { margin-bottom: 13px; }
+  .field:last-child { margin-bottom: 0; }
+  .field label { display: block; font-size: 12.5px; color: var(--text-2); margin-bottom: 5px; font-weight: 500; }
   .field input {
     width: 100%;
     font: inherit;
+    font-size: 13.5px;
     padding: 9px 12px;
-    border: 0.5px solid var(--border);
-    border-radius: 8px;
-    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    background: var(--surface-2);
     color: var(--text);
     outline: none;
+    transition: border-color .15s, box-shadow .15s, background .15s;
   }
-  .field input:focus { border-color: var(--accent); }
-  .field .tip { font-size: 12px; color: var(--muted); margin-top: 5px; }
-  .field .tip a { color: var(--accent); }
-  .row { display: flex; gap: 12px; }
-  .row .field { flex: 1; }
-  .panel .actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
-  .panel .actions button {
-    font: inherit;
-    padding: 9px 18px;
-    border-radius: 8px;
-    cursor: pointer;
-    border: 0.5px solid var(--border);
+  .field input:focus {
+    border-color: var(--accent-border);
     background: var(--surface);
-    color: var(--text);
+    box-shadow: 0 0 0 3.5px var(--accent-soft);
   }
+  .field .tip { font-size: 11.5px; color: var(--muted); margin-top: 5px; line-height: 1.5; }
+  .row { display: flex; gap: 12px; }
+  .row .field { flex: 1; min-width: 0; }
+
+  .callout {
+    display: flex;
+    gap: 8px;
+    background: var(--warn-soft);
+    border: 1px solid #F0D9B5;
+    border-radius: var(--radius-sm);
+    padding: 9px 11px;
+    font-size: 11.5px;
+    line-height: 1.6;
+    color: #8A5A15;
+    margin-top: 13px;
+  }
+  .callout svg { flex-shrink: 0; margin-top: 1px; }
+
+  .notice {
+    font-size: 12.5px;
+    color: var(--danger);
+    background: var(--danger-soft);
+    border-radius: 9px;
+    padding: 9px 12px;
+    margin: 14px 22px 0;
+    display: none;
+  }
+  .notice.show { display: block; }
+
+  .panel .actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 9px;
+    padding: 16px 22px 20px;
+  }
+  .panel .actions button {
+    padding: 9px 20px;
+    border-radius: 9px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-2);
+    font-size: 13.5px;
+    transition: border-color .15s, color .15s;
+  }
+  .panel .actions button:hover { border-color: var(--border-strong); color: var(--text); }
   .panel .actions button.primary {
     background: var(--accent);
     border-color: var(--accent);
     color: #fff;
+    box-shadow: 0 2px 8px rgba(79, 70, 229, .26);
   }
-  .panel .actions button:disabled { opacity: 0.5; cursor: not-allowed; }
-  .panel .notice {
-    font-size: 12px;
-    color: var(--danger);
-    margin-top: 12px;
-    display: none;
-  }
-  .panel .notice.show { display: block; }
+  .panel .actions button.primary:hover:not(:disabled) { background: var(--accent-hover); }
+  .panel .actions button:disabled { opacity: .5; cursor: not-allowed; }
 
+  /* ---------------- 轻提示 ---------------- */
+  #toast {
+    position: fixed;
+    top: 18px;
+    left: 50%;
+    transform: translate(-50%, -14px);
+    background: #1F232B;
+    color: #fff;
+    font-size: 13px;
+    border-radius: 10px;
+    padding: 9px 16px;
+    box-shadow: var(--shadow-md);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .2s, transform .2s;
+    z-index: 60;
+    max-width: 86vw;
+  }
+  #toast.show { opacity: 1; transform: translate(-50%, 0); }
+  #toast.err { background: var(--danger); }
+
+  /* ---------------- 拖拽层 ---------------- */
   body.dragover::after {
     content: "松开鼠标即可上传文档";
     position: fixed;
     inset: 12px;
     border: 2px dashed var(--accent);
-    border-radius: 16px;
-    background: rgba(83, 74, 183, 0.06);
+    border-radius: 18px;
+    background: rgba(79, 70, 229, .07);
     color: var(--accent);
+    font-size: 15px;
+    font-weight: 500;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 15px;
     pointer-events: none;
-    z-index: 10;
+    z-index: 50;
+    backdrop-filter: blur(1px);
+  }
+
+  /* ---------------- 响应式 ---------------- */
+  @media (max-width: 720px) {
+    .app { padding: 0 12px; }
+    .topbar { padding: 12px 0 11px; gap: 10px; }
+    .brand-text .tagline { display: none; }
+    .pill { display: none; }
+    .btn { padding: 8px; }
+    .btn .btn-label { display: none; }
+    .logo { width: 34px; height: 34px; border-radius: 10px; }
+    main { padding: 16px 0; gap: 14px; }
+    .bubble { max-width: 92%; font-size: 13.5px; }
+    .msg.user .bubble { max-width: 88%; }
+    .msg.assistant .bubble { width: 100%; }
+    .welcome h2 { font-size: 17px; }
+    .report-grid { grid-template-columns: repeat(3, 1fr); }
+    .panel { border-radius: 16px; }
+    .panel-head, .panel-body { padding-left: 18px; padding-right: 18px; }
+    .notice { margin-left: 18px; margin-right: 18px; }
+    .panel .actions { padding: 14px 18px 18px; }
+    .panel .actions button { flex: 1; }
+    .row { flex-direction: column; gap: 0; }
+    .composer-hint .tech { display: none; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
   }
 </style>
 </head>
 <body>
 <div class="app">
-  <header>
-    <h1>个人 RAG 知识库助手</h1>
-    <input type="file" id="filePicker" multiple hidden
-           accept=".md,.markdown,.txt,.pdf,.docx,.pptx,.py,.json,.csv,.yaml,.yml">
-    <button id="upload">上传文档</button>
-    <button id="ingest">重建索引</button>
-    <button id="settingsBtn">设置</button>
-    <span class="status" id="status">就绪</span>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 6.5A2.5 2.5 0 0 1 6.5 4H13l3 3h4.5A2.5 2.5 0 0 1 23 9.5"/>
+          <path d="M2 13.2 4.2 8.6A2 2 0 0 1 6 7.5h13.6a2 2 0 0 1 1.9 2.6l-2.2 7A2 2 0 0 1 17.4 18.5H4.9A2.5 2.5 0 0 1 2.4 15.5Z"/>
+          <path d="M9.5 12.2h6"/>
+        </svg>
+      </span>
+      <div class="brand-text">
+        <h1>个人 RAG 知识库助手</h1>
+        <p class="tagline">本地索引 · 回答可溯源 · 文档不出本机</p>
+      </div>
+    </div>
+
+    <div class="topbar-actions">
+      <span class="pill" id="statusPill"><i class="dot"></i><span id="status">就绪</span></span>
+
+      <input type="file" id="filePicker" multiple hidden
+             accept=".md,.markdown,.txt,.pdf,.docx,.pptx,.py,.json,.csv,.yaml,.yml">
+
+      <button class="btn" id="upload" title="上传文档">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <path d="M12 3v13"/><path d="m7 8 5-5 5 5"/>
+        </svg>
+        <span class="btn-label">上传文档</span>
+      </button>
+
+      <button class="btn" id="ingest" title="重建索引">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 4v5h-5"/>
+        </svg>
+        <span class="btn-label">重建索引</span>
+      </button>
+
+      <button class="btn" id="settingsBtn" title="设置">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 6h16M4 12h16M4 18h16"/>
+          <circle cx="9" cy="6" r="2"/>
+          <circle cx="15" cy="12" r="2"/>
+          <circle cx="8" cy="18" r="2"/>
+        </svg>
+        <span class="btn-label">设置</span>
+      </button>
+    </div>
   </header>
 
   <main id="messages">
-    <div class="hint">
-      先在右上角「设置」里填入 API Key；然后上传或拖入文档（支持
-      <code>PDF</code> <code>Word</code> <code>PPT</code> <code>Markdown</code>
-      <code>代码 / 文本</code>），上传后会自动建库。完成后即可在下方提问。
+    <div class="welcome" id="welcome">
+      <div class="welcome-icon" aria-hidden="true">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3v3M12 18v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M3 12h3M18 12h3M4.9 19.1 7 17M17 7l2.1-2.1"/>
+          <circle cx="12" cy="12" r="3.4"/>
+        </svg>
+      </div>
+      <h2>基于你自己的文档回答问题</h2>
+      <p>答案只依据知识库内容生成，并标注来源文件与页码 —— 你可以逐条核对，而不是盲信模型。</p>
+
+      <ol class="steps">
+        <li><b>配置</b><span>点右上角「设置」填入智谱 API Key（一次性）</span></li>
+        <li><b>入库</b><span>上传或直接拖入 PDF / Word / PPT / Markdown</span></li>
+        <li><b>提问</b><span>在下方提问，答案会附带引用来源卡片</span></li>
+      </ol>
+
+      <div class="examples">
+        <span class="examples-label">试试这样问：</span>
+        <div class="chips">
+          <button class="chip" data-q="用几句话总结这份文档的核心内容。">总结核心内容</button>
+          <button class="chip" data-q="这份文档里提到了哪些关键概念？分别解释一下。">列出关键概念</button>
+          <button class="chip" data-q="把文档的主要结论分条列出来。">提炼主要结论</button>
+        </div>
+      </div>
+
+      <div class="formats">支持 PDF · Word · PPT · Markdown · 代码 / 纯文本</div>
     </div>
   </main>
 
-  <footer>
-    <textarea id="input" rows="1" placeholder="基于你的知识库提问…（Enter 发送，Shift+Enter 换行）"></textarea>
-    <button id="send">发送</button>
+  <footer class="composer">
+    <div class="composer-box">
+      <textarea id="input" rows="1" placeholder="基于你的知识库提问…"></textarea>
+      <button class="send-btn" id="send" title="发送">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4.5 12h14"/><path d="m13 6.5 5.5 5.5L13 17.5"/>
+        </svg>
+      </button>
+    </div>
+    <div class="composer-hint">
+      <span><kbd>Enter</kbd> 发送 · <kbd>Shift</kbd>+<kbd>Enter</kbd> 换行</span>
+      <span class="tech">智谱 GLM · ChromaDB 本地向量库</span>
+    </div>
   </footer>
 </div>
 
 <div class="overlay" id="overlay">
-  <div class="panel">
-    <h2>设置</h2>
-    <div class="sub">保存后会写入项目根目录的 <code>.env</code>，并立即生效，无需重启服务。</div>
-
-    <div class="field">
-      <label for="keyInput">智谱 API Key</label>
-      <input type="password" id="keyInput" autocomplete="off" spellcheck="false"
-             placeholder="粘贴你的 API Key">
-      <div class="tip" id="keyTip">
-        申请地址：<a href="https://bigmodel.cn/usercenter/apikeys" target="_blank" rel="noopener">bigmodel.cn/usercenter/apikeys</a>
+  <div class="panel" role="dialog" aria-modal="true" aria-labelledby="panelTitle">
+    <div class="panel-head">
+      <div>
+        <h2 id="panelTitle">设置</h2>
+        <p class="sub">保存后写入项目根目录的 <code>.env</code>，立即生效，无需重启服务。</p>
       </div>
+      <button class="icon-btn" id="closeBtn" title="关闭">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
     </div>
 
-    <div class="row">
-      <div class="field">
-        <label for="chatModelInput">对话模型</label>
-        <input id="chatModelInput" spellcheck="false" placeholder="glm-5.2">
+    <div class="panel-body">
+      <div class="section">
+        <p class="section-title">模型服务</p>
+        <div class="field">
+          <label for="keyInput">智谱 API Key</label>
+          <input type="password" id="keyInput" autocomplete="off" spellcheck="false"
+                 placeholder="粘贴你的 API Key">
+          <div class="tip" id="keyTip">
+            申请地址：<a href="https://bigmodel.cn/usercenter/apikeys" target="_blank" rel="noopener">bigmodel.cn/usercenter/apikeys</a>
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="chatModelInput">对话模型</label>
+            <input id="chatModelInput" spellcheck="false" placeholder="glm-5.2">
+          </div>
+          <div class="field">
+            <label for="embedModelInput">Embedding 模型</label>
+            <input id="embedModelInput" spellcheck="false" placeholder="embedding-3">
+          </div>
+        </div>
       </div>
-      <div class="field">
-        <label for="embedModelInput">Embedding 模型</label>
-        <input id="embedModelInput" spellcheck="false" placeholder="embedding-3">
-      </div>
-    </div>
 
-    <div class="row">
-      <div class="field">
-        <label for="embedDimInput">向量维度</label>
-        <input id="embedDimInput" type="number" min="16" max="4096" placeholder="1024">
-      </div>
-      <div class="field">
-        <label for="topKInput">召回条数 Top-K</label>
-        <input id="topKInput" type="number" min="1" max="50" placeholder="5">
+      <div class="section">
+        <p class="section-title">检索参数</p>
+        <div class="row">
+          <div class="field">
+            <label for="embedDimInput">向量维度</label>
+            <input id="embedDimInput" type="number" min="16" max="4096" placeholder="1024">
+          </div>
+          <div class="field">
+            <label for="topKInput">召回条数 Top-K</label>
+            <input id="topKInput" type="number" min="1" max="50" placeholder="5">
+          </div>
+        </div>
+        <div class="callout">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 9v4M12 17h.01"/>
+            <path d="M10.3 3.9 1.9 18a2 2 0 0 0 1.7 3h16.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/>
+          </svg>
+          <span>改动「Embedding 模型」或「向量维度」后，旧索引会失效，需点一次「重建索引」。</span>
+        </div>
       </div>
     </div>
 
@@ -295,8 +900,11 @@
   </div>
 </div>
 
+<div id="toast" role="status" aria-live="polite"></div>
+
 <script>
 const messages = document.getElementById('messages');
+const welcome = document.getElementById('welcome');
 const input = document.getElementById('input');
 const sendBtn = document.getElementById('send');
 const ingestBtn = document.getElementById('ingest');
@@ -304,6 +912,8 @@ const uploadBtn = document.getElementById('upload');
 const settingsBtn = document.getElementById('settingsBtn');
 const filePicker = document.getElementById('filePicker');
 const statusEl = document.getElementById('status');
+const statusPill = document.getElementById('statusPill');
+const toastEl = document.getElementById('toast');
 
 const overlay = document.getElementById('overlay');
 const keyInput = document.getElementById('keyInput');
@@ -313,52 +923,223 @@ const embedDimInput = document.getElementById('embedDimInput');
 const topKInput = document.getElementById('topKInput');
 const saveBtn = document.getElementById('saveBtn');
 const cancelBtn = document.getElementById('cancelBtn');
+const closeBtn = document.getElementById('closeBtn');
 const panelNotice = document.getElementById('panelNotice');
 
-function setStatus(text) { statusEl.textContent = text; }
+const ICON_FILE =
+  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+  'stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">' +
+  '<path d="M14 2H6.5A2.5 2.5 0 0 0 4 4.5v15A2.5 2.5 0 0 0 6.5 22h11a2.5 2.5 0 0 0 ' +
+  '2.5-2.5V8Z"/><path d="M14 2v6h6"/></svg>';
+const ICON_CHEV =
+  '<svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+  'stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>';
+const ICON_TICK =
+  '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+  'stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+
+/* ---------- 状态与轻提示 ---------- */
+function setStatus(text, kind) {
+  statusEl.textContent = text;
+  statusPill.classList.toggle('busy', kind === 'busy');
+  statusPill.classList.toggle('err', kind === 'err');
+}
+
+let toastTimer = null;
+function toast(text, isError) {
+  toastEl.textContent = text;
+  toastEl.classList.toggle('err', !!isError);
+  toastEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2600);
+}
+
+/* ---------- 文本渲染 ---------- */
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+
+// 行内标记：`code`、**粗体**、[1] 引用角标
+function inline(text) {
+  return text
+    .replace(/`([^`\n]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/\[(\d{1,2})\]/g, '<span class="cite-ref">$1</span>');
+}
+
+// 极简 Markdown：段落 / 无序列表 / 有序列表 / 标题
+function renderRich(text) {
+  const lines = escapeHtml(text).split('\n');
+  let html = '';
+  let para = [];
+  let list = null;
+
+  const flushPara = () => {
+    if (para.length) { html += '<p>' + para.map(inline).join('<br>') + '</p>'; para = []; }
+  };
+  const flushList = () => {
+    if (list) { html += '<ul>' + list.map(li => '<li>' + inline(li) + '</li>').join('') + '</ul>'; list = null; }
+  };
+
+  for (const line of lines) {
+    const item = line.match(/^\s*(?:[-*+]|\d+[.)])\s+(.*)$/);
+    if (item) { flushPara(); (list = list || []).push(item[1]); continue; }
+    flushList();
+
+    const head = line.match(/^#{1,4}\s+(.*)$/);
+    if (head) { flushPara(); html += '<p class="h">' + inline(head[1]) + '</p>'; continue; }
+
+    if (!line.trim()) { flushPara(); continue; }
+    para.push(line.trim());
+  }
+  flushList();
+  flushPara();
+  return html || '<p></p>';
+}
+
+/* ---------- 消息 ---------- */
+function hideWelcome() {
+  if (welcome) welcome.classList.add('gone');
+}
+
+function scrollDown() {
+  messages.scrollTop = messages.scrollHeight;
+}
 
 function addMessage(role, text) {
+  hideWelcome();
   const wrap = document.createElement('div');
   wrap.className = 'msg ' + role;
+
+  if (role === 'assistant') {
+    const avatar = document.createElement('div');
+    avatar.className = 'avatar';
+    avatar.setAttribute('aria-hidden', 'true');
+    avatar.innerHTML =
+      '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+      'stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">' +
+      '<path d="M12 3v3M12 18v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M3 12h3M18 12h3M4.9 19.1 7 17M17 7l2.1-2.1"/>' +
+      '<circle cx="12" cy="12" r="3.4"/></svg>';
+    wrap.appendChild(avatar);
+  }
+
   const bubble = document.createElement('div');
   bubble.className = 'bubble';
-  bubble.textContent = text;
+  if (text != null) bubble.textContent = text;
   wrap.appendChild(bubble);
   messages.appendChild(wrap);
-  messages.scrollTop = messages.scrollHeight;
+  scrollDown();
   return bubble;
 }
 
-function escapeHtml(value) {
-  return String(value).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function addThinking() {
+  const bubble = addMessage('assistant', null);
+  bubble.innerHTML = '<span class="dots"><i></i><i></i><i></i></span>';
+  return bubble;
 }
 
+/* ---------- 引用卡片 ---------- */
 function renderCitations(bubble, citations) {
   if (!citations || !citations.length) return;
+
   const box = document.createElement('div');
   box.className = 'citations';
+
   const label = document.createElement('div');
   label.className = 'label';
-  label.textContent = '引用来源（点击展开原文）';
+  label.textContent = '引用来源 · ' + citations.length + ' 条';
   box.appendChild(label);
 
   for (const item of citations) {
+    const pct = typeof item.score === 'number' ? Math.round(item.score * 100) : null;
+
     const details = document.createElement('details');
+    details.className = 'cite';
+
     const summary = document.createElement('summary');
-    const loc = item.location ? ' · ' + item.location : '';
-    const score = typeof item.score === 'number' ? ' · 相似度 ' + Math.round(item.score * 100) + '%' : '';
+    let right = '';
+    if (item.location) right += '<span class="cite-loc">' + escapeHtml(item.location) + '</span>';
+    if (pct !== null) {
+      right += '<span class="meter"><span class="meter-track">' +
+        '<i class="meter-fill" style="width:' + Math.max(6, Math.min(100, pct)) + '%"></i>' +
+        '</span>' + pct + '%</span>';
+    }
     summary.innerHTML =
-      '<span class="src">[' + item.index + '] ' + escapeHtml(item.source) + '</span>' +
-      '<span class="loc">' + escapeHtml(loc + score) + '</span>';
+      '<span class="cite-idx">' + escapeHtml(item.index) + '</span>' +
+      '<span class="cite-main"><span class="cite-src">' + ICON_FILE +
+        '<span>' + escapeHtml(item.source) + '</span></span>' +
+      '<span class="cite-meta">' + right + '</span></span>' +
+      ICON_CHEV;
+    details.appendChild(summary);
+
+    const body = document.createElement('div');
+    body.className = 'cite-body';
     const pre = document.createElement('pre');
     pre.textContent = item.text;
-    details.appendChild(summary);
-    details.appendChild(pre);
+    const bar = document.createElement('div');
+    bar.className = 'bar';
+    const copyBtn = document.createElement('button');
+    copyBtn.type = 'button';
+    copyBtn.className = 'copy-btn';
+    copyBtn.textContent = '复制原文';
+    copyBtn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(item.text);
+        copyBtn.textContent = '已复制';
+      } catch (err) {
+        copyBtn.textContent = '复制失败';
+      }
+      setTimeout(() => { copyBtn.textContent = '复制原文'; }, 1600);
+    });
+    bar.appendChild(copyBtn);
+    body.appendChild(pre);
+    body.appendChild(bar);
+    details.appendChild(body);
+
     box.appendChild(details);
   }
   bubble.appendChild(box);
 }
 
+/* ---------- 建库报告 ---------- */
+function renderReport(bubble, data, extraLines) {
+  hideWelcome();
+  bubble.textContent = '';
+
+  const head = document.createElement('div');
+  head.className = 'report-head';
+  head.innerHTML = '<span class="tick">' + ICON_TICK + '</span><span>' + (extraLines.title || '建库完成') + '</span>';
+  bubble.appendChild(head);
+
+  const grid = document.createElement('div');
+  grid.className = 'report-grid';
+  const stats = [
+    ['新增', data.added.length, true],
+    ['更新', data.updated.length, true],
+    ['移除', data.removed.length, false],
+    ['未变化', data.unchanged.length, false],
+    ['写入片段', data.chunks_written, true],
+  ];
+  for (const [name, value, hot] of stats) {
+    const cell = document.createElement('div');
+    cell.className = 'stat' + (hot && value > 0 ? ' on' : '');
+    cell.innerHTML = '<b>' + value + '</b><span>' + name + '</span>';
+    grid.appendChild(cell);
+  }
+  bubble.appendChild(grid);
+
+  const notes = [];
+  if (extraLines.saved && extraLines.saved.length) notes.push('已上传：' + extraLines.saved.join('、'));
+  if (extraLines.skipped && extraLines.skipped.length) notes.push('已跳过（格式不支持）：' + extraLines.skipped.join('、'));
+  if (notes.length) {
+    const note = document.createElement('div');
+    note.className = 'report-note';
+    note.textContent = notes.join('\n');
+    bubble.appendChild(note);
+  }
+}
+
+/* ---------- 请求 ---------- */
 async function postJSON(url, payload) {
   const resp = await fetch(url, {
     method: 'POST',
@@ -370,12 +1151,6 @@ async function postJSON(url, payload) {
   return data;
 }
 
-function indexSummary(data) {
-  return '新增 ' + data.added.length + ' 个文件，更新 ' + data.updated.length +
-    ' 个，移除 ' + data.removed.length + ' 个，未变化 ' + data.unchanged.length +
-    ' 个，写入 ' + data.chunks_written + ' 个片段。';
-}
-
 async function ask() {
   const question = input.value.trim();
   if (!question) return;
@@ -385,35 +1160,41 @@ async function ask() {
   autoGrow();
 
   sendBtn.disabled = true;
-  setStatus('检索中…');
-  const bubble = addMessage('assistant', '正在检索知识库…');
+  setStatus('检索中…', 'busy');
+  const bubble = addThinking();
 
   try {
     const data = await postJSON('/query', { question });
-    bubble.textContent = data.answer;
+    if (data.citations && data.citations.length) {
+      bubble.innerHTML = renderRich(data.answer);
+    } else {
+      bubble.textContent = data.answer;
+    }
     renderCitations(bubble, data.citations);
     setStatus('就绪');
   } catch (err) {
     bubble.textContent = '出错了：' + err.message;
-    setStatus('出错');
+    setStatus('出错', 'err');
   } finally {
     sendBtn.disabled = false;
-    messages.scrollTop = messages.scrollHeight;
+    scrollDown();
   }
 }
 
 async function rebuildIndex() {
   ingestBtn.disabled = true;
-  setStatus('正在建库…');
+  setStatus('正在建库…', 'busy');
+  const bubble = addThinking();
   try {
     const data = await postJSON('/ingest', { force: false });
-    setStatus('建库完成');
-    addMessage('assistant', '建库完成：' + indexSummary(data));
+    renderReport(bubble, data, { title: '索引重建完成' });
+    setStatus('就绪');
   } catch (err) {
-    addMessage('assistant', '建库出错：' + err.message);
-    setStatus('出错');
+    bubble.textContent = '建库出错：' + err.message;
+    setStatus('出错', 'err');
   } finally {
     ingestBtn.disabled = false;
+    scrollDown();
   }
 }
 
@@ -425,33 +1206,36 @@ async function uploadFiles(fileList) {
   files.forEach(file => form.append('files', file));
 
   uploadBtn.disabled = true;
-  setStatus('上传中…');
+  setStatus('上传中…', 'busy');
+  const bubble = addThinking();
   try {
     const resp = await fetch('/upload', { method: 'POST', body: form });
     const data = await resp.json();
     if (!resp.ok) throw new Error(data.detail || '上传失败');
 
-    setStatus('建库完成');
-    let text = '已上传 ' + data.saved.length + ' 个文件：' + data.saved.join('、') +
-      '\n' + indexSummary(data);
-    if (data.skipped && data.skipped.length) {
-      text += '\n已跳过不支持的文件：' + data.skipped.join('、');
-    }
-    addMessage('assistant', text);
+    renderReport(bubble, data, {
+      title: '已入库 ' + data.saved.length + ' 个文件',
+      saved: data.saved,
+      skipped: data.skipped
+    });
+    setStatus('就绪');
+    toast('已上传 ' + data.saved.length + ' 个文件');
   } catch (err) {
-    addMessage('assistant', '上传出错：' + err.message);
-    setStatus('出错');
+    bubble.textContent = '上传出错：' + err.message;
+    setStatus('出错', 'err');
+    toast('上传失败：' + err.message, true);
   } finally {
     uploadBtn.disabled = false;
     filePicker.value = '';
+    scrollDown();
   }
 }
 
+/* ---------- 设置面板 ---------- */
 function showNotice(text) {
   panelNotice.textContent = text;
   panelNotice.classList.add('show');
 }
-
 function hideNotice() {
   panelNotice.textContent = '';
   panelNotice.classList.remove('show');
@@ -467,13 +1251,13 @@ function fillForm(data) {
     ? '已配置 ' + data.api_key_hint + '（留空则不修改）'
     : '粘贴你的 API Key';
   settingsBtn.classList.toggle('warn', !data.api_key_set);
-  settingsBtn.textContent = data.api_key_set ? '设置' : '设置 API';
 }
 
 function openSettings() {
   hideNotice();
   overlay.classList.add('open');
-  keyInput.focus();
+  if (!settingsBtn.classList.contains('warn')) keyInput.blur();
+  setTimeout(() => keyInput.focus(), 40);
 }
 
 function closeSettings() { overlay.classList.remove('open'); }
@@ -485,10 +1269,10 @@ async function loadSettings() {
     fillForm(data);
     if (!data.api_key_set) {
       openSettings();
-      addMessage('assistant', '还没有配置 API Key，请在上方的设置面板里填入后保存。');
+      addMessage('assistant', '还没有配置 API Key，请在弹出的设置面板里填入后保存。');
     }
   } catch (err) {
-    setStatus('读取设置失败');
+    setStatus('读取设置失败', 'err');
   }
 }
 
@@ -506,13 +1290,12 @@ async function saveSettings() {
   try {
     const data = await postJSON('/settings', payload);
     fillForm(data);
-    setStatus('已保存');
-    let text = '设置已保存' + (data.api_key_set ? '，API Key：' + data.api_key_hint : '') + '。';
-    if (data.needs_reindex) {
-      text += '\n注意：Embedding 模型或维度变了，旧索引已失效，请点「重建索引」。';
-    }
+    setStatus('就绪');
     closeSettings();
-    addMessage('assistant', text);
+    toast('设置已保存' + (data.api_key_set ? ' · ' + data.api_key_hint : ''));
+    if (data.needs_reindex) {
+      addMessage('assistant', '注意：Embedding 模型或向量维度变了，旧索引已失效，请点右上角「重建索引」。');
+    }
   } catch (err) {
     showNotice('保存失败：' + err.message);
   } finally {
@@ -520,6 +1303,7 @@ async function saveSettings() {
   }
 }
 
+/* ---------- 输入框 ---------- */
 function autoGrow() {
   input.style.height = 'auto';
   input.style.height = Math.min(input.scrollHeight, 140) + 'px';
@@ -531,17 +1315,28 @@ uploadBtn.addEventListener('click', () => filePicker.click());
 filePicker.addEventListener('change', () => uploadFiles(filePicker.files));
 settingsBtn.addEventListener('click', openSettings);
 cancelBtn.addEventListener('click', closeSettings);
+closeBtn.addEventListener('click', closeSettings);
 saveBtn.addEventListener('click', saveSettings);
 overlay.addEventListener('click', event => { if (event.target === overlay) closeSettings(); });
 document.addEventListener('keydown', event => {
-  if (event.key === 'Escape') closeSettings();
+  if (event.key === 'Escape' && overlay.classList.contains('open')) closeSettings();
 });
+
 input.addEventListener('input', autoGrow);
 input.addEventListener('keydown', event => {
   if (event.key === 'Enter' && !event.shiftKey) {
     event.preventDefault();
     ask();
   }
+});
+
+// 示例问题：点一下直接提问
+document.querySelectorAll('.chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    input.value = chip.dataset.q || chip.textContent.trim();
+    autoGrow();
+    ask();
+  });
 });
 
 window.addEventListener('dragover', event => {

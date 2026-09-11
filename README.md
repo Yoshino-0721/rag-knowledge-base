@@ -3,7 +3,7 @@
 ![Python](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?logo=fastapi&logoColor=white)
 ![ChromaDB](https://img.shields.io/badge/ChromaDB-local-FF6B6B)
-![Tests](https://img.shields.io/badge/tests-74%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-82%20passed-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
 把散落在本机的 PDF、Word、PPT、Markdown 变成**可溯源**的问答知识库。
@@ -38,10 +38,12 @@ PDF 精确到页码、PPT 到页序，还会给出相似度。**能核对，才�
 | 增量索引 | 按文件内容 SHA-256 判断变化，只重建新增/修改的文件，自动清理已删除文件 |
 | 相似度检索 | Top-K 余弦相似度召回，K 值可调 |
 | 基于上下文的生成 | 召回片段按编号拼进 Prompt，要求模型"看着材料回答"、不得编造 |
-| 来源引用 | 回答附带引用卡片，可展开查看原文；PDF 精确到页码，PPT 到页序 |
+| 来源引用 | 回答里的 `[1]` 渲染成引用角标；引用卡片显示文件、页码、相似度进度条，可展开原文并一键复制 |
+| 答案渲染 | 轻度 Markdown（标题 / 有序无序列表 / 行内代码 / 粗体），文档内容全部转义后再渲染 |
+| 移动端适配 | 响应式布局，手机上可正常问答 —— 方便扫码演示 |
 | 网页设置面板 | 在界面上直接填写 API Key 与模型参数，保存即写回 `.env` 并立即生效，无需重启 |
 | 访问口令 | 可选开启，公网部署时防止陌生人消耗你的 API Key |
-| 本地网页界面 | 聊天式交互，支持拖拽上传 |
+| 本地网页界面 | 聊天式交互，支持拖拽上传、示例问题一键提问、建库报告卡片 |
 
 ## 工作原理
 
@@ -71,7 +73,7 @@ flowchart LR
 | 大模型 / Embedding | 智谱 GLM（OpenAI 兼容接口，一个 Key 通用） |
 | 文档解析 | PyMuPDF / python-docx / python-pptx / 原生读取 |
 | 前端 | 原生 HTML + JS，无需构建 |
-| 测试 | pytest（74 项） |
+| 测试 | pytest（82 项） |
 
 > 说明：**未引入 LangChain**。本项目链路只有「检索 → 拼 Prompt → 调用模型」，
 > 原生实现更短更透明、出错好定位；等将来需要多路检索或 Agent 编排时再评估。
@@ -177,7 +179,7 @@ docker compose up -d --build
 pytest
 ```
 
-74 项测试全部使用桩对象，不发起真实 API 调用，也不会改动真实的 `.env`。
+82 项测试全部使用桩对象，不发起真实 API 调用，也不会改动真实的 `.env`。
 
 ## 后续规划（V2+）
 
