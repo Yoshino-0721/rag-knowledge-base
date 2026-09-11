@@ -56,3 +56,17 @@ def test_readme_demo_section_matches_screenshot():
     # 新版截图展示的是同一份 PDF 上的两个问题
     assert "集线器" in body and "TCP" in body, "效果演示文案未随截图更新"
     assert "相似度" in body, "效果演示应说明引用卡片里的相似度"
+
+
+def test_deploy_doc_local_path_examples_follow_repo_location():
+    """部署文档里的本机绝对路径示例，末级目录必须就是本仓库所在的目录。
+
+    项目目录一旦被移动或改名（例如从容器根挪进子文件夹），文档里的示例路径
+    很容易忘记同步，这条断言能在当场把它拦下来。
+    """
+    doc = (ROOT / "docs" / "DEPLOY.md").read_text(encoding="utf-8")
+    refs = re.findall(r"D:/[^\s`*]+", doc)
+    assert refs, "DEPLOY.md 应至少给出一个本机路径示例"
+
+    for ref in refs:
+        assert ref.rstrip("/").endswith(ROOT.name), f"路径示例与本仓库实际位置不符：{ref}"

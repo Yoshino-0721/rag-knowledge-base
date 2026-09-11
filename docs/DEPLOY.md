@@ -69,7 +69,8 @@ git clone https://github.com/<你的用户名>/<仓库名>.git
 cd <仓库名>
 
 # 方式 B：本机直接传（不经 GitHub）
-# scp -r D:/代码项目/* root@服务器IP:/opt/rag/
+# scp -r D:/代码项目/rag-knowledge-base/* root@服务器IP:/opt/rag/
+# 注：上面的 * 不含隐藏文件，所以 .env 不会被传；请在服务器上按 .env.example 新建
 ```
 
 ### 5. 配置并启动
