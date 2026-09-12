@@ -729,38 +729,6 @@
     word-break: break-word;
   }
 
-  /* 工具调用记录：让「模型确实调了工具、拿到了什么」看得见 */
-  .tools {
-    margin-top: 11px; padding-top: 10px;
-    border-top: 1px dashed var(--border);
-  }
-  .tools .label {
-    display: flex; align-items: center; gap: 6px;
-    font-size: 11.5px; font-weight: 600;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: .05em;
-    margin-bottom: 9px;
-  }
-  .tools .label::after { content: ""; flex: 1; height: 1px; background: var(--border); }
-  .tool-mark {
-    flex-shrink: 0;
-    width: 20px; height: 20px;
-    border-radius: 6px;
-    background: var(--accent-soft);
-    color: var(--accent-2);
-    display: grid; place-items: center;
-  }
-  .tool-state {
-    border-radius: 5px;
-    padding: 1px 6px;
-    font-size: 11px;
-    white-space: nowrap;
-    background: var(--success-soft);
-    color: var(--success);
-  }
-  .tool-state.bad { background: var(--danger-soft); color: var(--danger); }
-
   /* 开关 */
   .switch { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
   .switch input { position: absolute; opacity: 0; width: 0; height: 0; }
@@ -1022,20 +990,6 @@
         </div>
       </div>
 
-      <div class="section">
-        <p class="section-title">工具调用（Agent）</p>
-        <label class="switch">
-          <input type="checkbox" id="agentToggle">
-          <span class="track"></span>
-          <span class="switch-text">允许模型调用工具
-            <em>当前内置「查天气」（Open-Meteo，免费无需密钥）。关掉即退化为纯知识库问答</em>
-          </span>
-        </label>
-        <div class="field field-gap">
-          <label for="agentStepsInput">单轮最多调用次数（防止无限循环）</label>
-          <input id="agentStepsInput" type="number" min="1" max="10" placeholder="4">
-        </div>
-      </div>
     </div>
 
     <div class="notice" id="panelNotice"></div>
@@ -1077,8 +1031,6 @@ const rewriteToggle = document.getElementById('rewriteToggle');
 const historyTurnsInput = document.getElementById('historyTurnsInput');
 const rerankToggle = document.getElementById('rerankToggle');
 const rerankCandidatesInput = document.getElementById('rerankCandidatesInput');
-const agentToggle = document.getElementById('agentToggle');
-const agentStepsInput = document.getElementById('agentStepsInput');
 
 /* 对话上下文存在前端，服务端不保存会话 —— 重启服务也不丢，且天然支持多开标签页 */
 let conversation = [];
@@ -1096,11 +1048,6 @@ const ICON_CHEV =
 const ICON_TICK =
   '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
   'stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
-// 工具调用的标识：一把扳手，和「引用来源」的文档图标区分开
-const ICON_TOOL =
-  '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
-  'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
-  '<path d="M14.7 6.3a4 4 0 0 0 5 5L21 21l-3 3-9.7-9.7a4 4 0 0 1-5-5L6 6l3-3Z"/></svg>';
 
 /* ---------- 状态与轻提示 ---------- */
 function setStatus(text, kind) {
@@ -1227,55 +1174,6 @@ function renderRewritten(bubble, standalone) {
   const box = document.createElement('div');
   box.className = 'rewritten';
   box.innerHTML = '检索用的问题已改写为 <code>' + escapeHtml(standalone) + '</code>';
-  bubble.appendChild(box);
-}
-
-/* ---------- 工具调用 ---------- */
-// 参数是给机器看的 JSON，这里压成 k=v 一行，人扫一眼就懂
-function fmtArgs(args) {
-  if (!args) return '';
-  return Object.keys(args).map(key => key + '=' + args[key]).join(', ');
-}
-
-function renderToolCalls(bubble, calls) {
-  if (!calls || !calls.length) return;
-
-  const box = document.createElement('div');
-  box.className = 'tools';
-
-  const label = document.createElement('div');
-  label.className = 'label';
-  label.textContent = '调用工具 · ' + calls.length + ' 次';
-  box.appendChild(label);
-
-  for (const call of calls) {
-    const ok = !call.error;
-    const details = document.createElement('details');
-    details.className = 'cite tool';
-
-    const summary = document.createElement('summary');
-    const args = fmtArgs(call.arguments);
-    summary.innerHTML =
-      '<span class="tool-mark">' + ICON_TOOL + '</span>' +
-      '<span class="cite-main"><span class="cite-src"><span>' +
-        escapeHtml(call.label || call.name) + '</span></span>' +
-      '<span class="cite-meta">' +
-        (args ? '<span class="cite-loc">' + escapeHtml(args) + '</span>' : '') +
-        '<span class="tool-state' + (ok ? '' : ' bad') + '">' +
-          (ok ? '已返回' : '失败') + '</span>' +
-      '</span></span>' +
-      ICON_CHEV;
-    details.appendChild(summary);
-
-    const body = document.createElement('div');
-    body.className = 'cite-body';
-    const pre = document.createElement('pre');
-    pre.textContent = ok ? call.result : call.error;
-    body.appendChild(pre);
-    details.appendChild(body);
-
-    box.appendChild(details);
-  }
   bubble.appendChild(box);
 }
 
@@ -1434,7 +1332,6 @@ async function ask() {
     // 统一走 renderRich：它内部先 escapeHtml 再拼 HTML，纯文本答案同样安全
     bubble.innerHTML = renderRich(data.answer);
     if (data.rewritten && data.query) renderRewritten(bubble, data.query);
-    renderToolCalls(bubble, data.tool_calls);
     renderCitations(bubble, data.citations);
 
     // 记入上下文，下次追问才能带上
@@ -1520,8 +1417,6 @@ function fillForm(data) {
   rewriteToggle.checked = !!data.rewrite_enabled;
   rerankToggle.checked = !!data.rerank_enabled;
   rerankCandidatesInput.value = data.rerank_candidates ?? '';
-  agentToggle.checked = !!data.agent_enabled;
-  agentStepsInput.value = data.agent_max_steps ?? '';
   keyInput.value = '';
   keyInput.placeholder = data.api_key_set
     ? '已配置 ' + data.api_key_hint + '（留空则不修改）'
@@ -1564,9 +1459,7 @@ async function saveSettings() {
     rerank_enabled: rerankToggle.checked,
     rerank_candidates: rerankCandidatesInput.value
       ? Number(rerankCandidatesInput.value)
-      : null,
-    agent_enabled: agentToggle.checked,
-    agent_max_steps: agentStepsInput.value ? Number(agentStepsInput.value) : null
+      : null
   };
   const key = keyInput.value.trim();
   if (key) payload.api_key = key;

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import src.generate as generate_module
-from src.agent import ToolCall
 from src.config import settings
 from src.generate import (
     build_citations,
@@ -72,11 +71,11 @@ def test_build_citations_matches_input_order():
 def test_used_citations_dropped_when_answer_has_no_marker():
     """答案里没有任何 [n] → 本轮没用到参考资料 → 不展示引用卡片。
 
-    否则「问天气、下面却挂着五张文档卡片」会让人误以为数据来自这些文档。
+    否则「模型脱离材料作答、下面却挂着五张文档卡片」会让人误以为结论来自这些文档。
     """
     citations = build_citations(HITS)
 
-    assert used_citations("北京今天晴，30.5°C。", citations) == []
+    assert used_citations("这题我不会，知识库里没有相关内容。", citations) == []
     assert used_citations("", citations) == []
 
 
@@ -96,83 +95,14 @@ def test_used_citations_ignores_non_numeric_brackets():
 def test_answer_as_dict_shape():
     payload = generate("问题", HITS, chat_fn=lambda _: "回答").as_dict()
 
-    assert set(payload) == {"answer", "citations", "query", "rewritten", "tool_calls"}
+    assert set(payload) == {"answer", "citations", "query", "rewritten"}
     assert payload["answer"] == "回答"
-    assert payload["tool_calls"] == []
 
 
-# ---------- 工具调用 ----------
-
-TOOL_SPECS = [{"type": "function", "function": {"name": "get_weather"}}]
-
-
-def test_build_messages_without_tools_keeps_original_prompt():
-    """没挂工具时不能提工具，否则模型会以为有工具可用而凭空捏造调用。"""
-    messages = build_messages("什么是 RAG？", HITS)
-
-    assert "工具" not in messages[0]["content"]
-
-
-def test_build_messages_with_tools_adds_usage_rules():
-    messages = build_messages("什么是 RAG？", HITS, tools=TOOL_SPECS)
-    system = messages[0]["content"]
-
-    assert "工具" in system
-    assert "参考资料" in system, "原有的引用约束不能被工具说明顶掉"
-    # 实测发现：只答其中一个诉求是这个场景下最常见的翻车方式
-    assert "逐条" in system, "要提醒模型不要漏答多诉求问题"
-
-
-def test_build_messages_without_hits_still_reports_no_context():
-    messages = build_messages("北京天气", [], tools=TOOL_SPECS)
+def test_build_messages_reports_no_context_when_no_hits():
+    messages = build_messages("随便问问", [])
 
     assert "无参考资料" in messages[-1]["content"]
-
-
-def test_generate_with_tools_runs_agent_loop():
-    seen = []
-
-    def fake_chat_turn(messages, tool_specs=None):
-        seen.append(tool_specs)
-        if len(seen) == 1:
-            return {
-                "content": "",
-                "tool_calls": [
-                    {"id": "1", "name": "get_weather", "arguments": '{"city": "北京"}'}
-                ],
-            }
-        return {"content": "北京今天晴，30.5°C。", "tool_calls": []}
-
-    answer = generate(
-        "北京今天天气怎么样？",
-        [],
-        tools=TOOL_SPECS,
-        chat_turn_fn=fake_chat_turn,
-        runner=lambda name, raw: ToolCall(
-            name=name, label="查天气", result="【当前】晴，30.5°C"
-        ),
-    )
-
-    assert answer.text == "北京今天晴，30.5°C。"
-    assert answer.citations == [], "纯工具回答没有知识库引用"
-    assert [call["name"] for call in answer.tool_calls] == ["get_weather"]
-    assert answer.tool_calls[0]["label"] == "查天气"
-    assert seen[0] == TOOL_SPECS, "说明书要真的传给模型"
-
-
-def test_generate_without_tools_never_builds_agent_loop():
-    """关掉工具时要走原来的单次对话，别把 Agent 循环捎带上。"""
-    called = []
-
-    def fake_chat(messages):
-        called.append(messages)
-        return "回答"
-
-    answer = generate("问题", HITS, chat_fn=fake_chat)
-
-    assert answer.text == "回答"
-    assert answer.tool_calls == []
-    assert len(called) == 1
 
 
 # ---------- 多轮对话历史 ----------

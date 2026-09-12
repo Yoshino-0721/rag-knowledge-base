@@ -75,44 +75,6 @@ def chat(
     return response.choices[0].message.content or ""
 
 
-def chat_turn(
-    messages: list[dict],
-    tools: Sequence[dict] | None = None,
-    client: OpenAI | None = None,
-    temperature: float = 0.2,
-) -> dict:
-    """调用一次对话模型，返回**归一化**的助手消息。
-
-    和 ``chat()`` 的区别是这里保留了「模型想调工具」这件事。返回值形如::
-
-        {"content": "...", "tool_calls": [{"id": ..., "name": ..., "arguments": "原始JSON字符串"}]}
-
-    ``arguments`` 刻意保持字符串原样 —— 它要原封不动地回填进下一轮请求，
-    解析成 dict 再序列化回去容易和模型原本的输出产生偏差。
-    """
-    client = client or get_client()
-    request: dict = {
-        "model": settings.chat_model,
-        "messages": messages,
-        "temperature": temperature,
-    }
-    if tools:
-        request["tools"] = list(tools)
-
-    message = client.chat.completions.create(**request).choices[0].message
-    return {
-        "content": message.content or "",
-        "tool_calls": [
-            {
-                "id": call.id,
-                "name": call.function.name,
-                "arguments": call.function.arguments or "{}",
-            }
-            for call in (message.tool_calls or [])
-        ],
-    }
-
-
 def _post_rerank(payload: dict, client: httpx.Client | None = None) -> dict:
     """向智谱精排接口发一次请求。
 

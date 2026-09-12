@@ -85,8 +85,6 @@ class SettingsRequest(BaseModel):
     rewrite_enabled: bool | None = None
     rerank_enabled: bool | None = None
     rerank_candidates: int | None = Field(default=None, ge=1, le=128)
-    agent_enabled: bool | None = None
-    agent_max_steps: int | None = Field(default=None, ge=1, le=10)
 
 
 def _settings_state() -> dict:
@@ -104,8 +102,6 @@ def _settings_state() -> dict:
         "rerank_enabled": settings.rerank_enabled,
         "rerank_model": settings.rerank_model,
         "rerank_candidates": settings.rerank_candidates,
-        "agent_enabled": settings.agent_enabled,
-        "agent_max_steps": settings.agent_max_steps,
         "data_dir": str(settings.data_dir),
     }
 
@@ -135,8 +131,6 @@ def update_settings_endpoint(payload: SettingsRequest) -> dict:
         rewrite_enabled=payload.rewrite_enabled,
         rerank_enabled=payload.rerank_enabled,
         rerank_candidates=payload.rerank_candidates,
-        agent_enabled=payload.agent_enabled,
-        agent_max_steps=payload.agent_max_steps,
     )
     reset_client()
 
