@@ -187,6 +187,12 @@ def upload_endpoint(
     体积上限走**两道闸门**（见 ``src/upload_guard.py``）：先按 Content-Length
     快速拒绝，再在读取时按累计字节兜底 —— 只信请求头会被伪造头或
     ``Transfer-Encoding: chunked`` 绕过。
+
+    本端点是**同步阻塞**的：FastAPI 把同步 ``def`` 放进默认线程池（约 40 线程）执行，
+    所以它与其他同步端点**共享同一批线程**。上传要落盘、分块、并触发 embedding，
+    全是阻塞活，占线程是必然的 —— 除了线程池上限，还有接口级并发闸门
+    （见 ``src/concurrency.py``）兜住。代价说清楚：高并发上传时其他同步端点
+    （含 ``/health``）会一起变慢。这是刻意取舍：宁可慢，也不把阻塞活塞进事件循环。
     """
     if not files:
         raise HTTPException(status_code=400, detail="没有收到文件")
