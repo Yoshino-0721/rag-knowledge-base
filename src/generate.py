@@ -101,12 +101,16 @@ class Answer:
     citations: list[dict] = field(default_factory=list)
     query: str = ""
     rewritten: bool = False
+    # 精排降级信息：None = 成功或未启用；分类词 = 已降级到向量序（见 retrieve.py）
+    rerank_error: str | None = None
 
     def as_dict(self) -> dict:
         return {
             "answer": self.text,
             "citations": self.citations,
             "query": self.query,
+            "rerank_failed": self.rerank_error is not None,
+            "rerank_error": self.rerank_error,
             "rewritten": self.rewritten,
         }
 

@@ -8,12 +8,17 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, replace
 from typing import Callable, Sequence
+
+import httpx
 
 from src.config import settings
 from src.llm import embed_query, rerank_documents
 from src.store import get_collection
+
+logger = logging.getLogger(__name__)
 
 # 智谱精排接口单次最多接受 128 条候选
 RERANK_MAX_CANDIDATES = 128
@@ -82,11 +87,36 @@ def _take(hits: Sequence[Hit], limit: int) -> list[Hit]:
     return list(hits[:limit])
 
 
+def classify_rerank_error(exc: BaseException) -> str:
+    """把精排失败归类成一个**不含细节**的词，供响应体使用。
+
+    只回分类词 —— 异常消息、URL、堆栈一律只进日志，不进响应体：那些既是泄露面，
+    对前端也没有可操作性。分类的目的，是让"检索质量悄悄降级"这件事能被区分开：
+    网络抖动（timeout）该重试，配置写错（auth / model_not_found）该改配置。
+    """
+    if isinstance(exc, (httpx.TimeoutException, TimeoutError)):
+        return "timeout"
+
+    status = getattr(getattr(exc, "response", None), "status_code", None)
+    if status in (401, 403):
+        return "auth"
+    if status == 404:
+        return "model_not_found"
+
+    text = str(exc).lower()
+    if "不存在" in text or ("model" in text and ("not found" in text or "invalid" in text)):
+        return "model_not_found"
+    if "unauthorized" in text or "forbidden" in text or "api key" in text:
+        return "auth"
+    return "other"
+
+
 def rerank_hits(
     question: str,
     hits: Sequence[Hit],
     top_k: int | None = None,
     rerank_fn: RerankFn | None = None,
+    error_sink: list[str] | None = None,
 ) -> list[Hit]:
     """用精排模型给候选片段重新打分并排序。
 
@@ -104,8 +134,19 @@ def rerank_hits(
     try:
         scored = rerank_fn(question, [hit.text for hit in candidates], limit)
     except RuntimeError:
+        # 配置类错误照抛：没配 API Key 是环境问题，静默降级只会让人查半天
         raise
-    except Exception:
+    except Exception as exc:
+        kind = classify_rerank_error(exc)
+        logger.warning(
+            "精排失败，退回向量序：kind=%s exc=%s query_len=%d candidates=%d",
+            kind,
+            type(exc).__name__,
+            len(question),
+            len(candidates),
+        )
+        if error_sink is not None:
+            error_sink.append(kind)
         return _take(candidates, limit)
 
     ranked: list[Hit] = []
@@ -122,21 +163,27 @@ def rerank_hits(
     return ranked[:limit] if ranked else _take(candidates, limit)
 
 
-def search_ranked(
+def search_ranked_ex(
     question: str,
     top_k: int | None = None,
     collection=None,
     embed_fn: Callable[[str], list[float]] | None = None,
     rerank_fn: RerankFn | None = None,
-) -> list[Hit]:
-    """完整召回链路：先宽召回，再用精排截取最终 Top-K。
+) -> tuple[list[Hit], str | None]:
+    """完整召回链路，并带回**精排状态**。
 
-    关掉精排时等价于直接调用 ``search``。
+    返回 ``(hits, rerank_error)``：
+
+    - ``None`` —— 精排成功，或本轮根本没启用/没走到精排（不算降级）
+    - 分类词 —— 精排失败且已降级到向量序（``timeout`` / ``auth`` /
+      ``model_not_found`` / ``other``）
+
+    把状态带出来，是为了让"检索质量静默降级"变成**可见**的事。
     """
     k = settings.top_k if top_k is None else top_k
 
     if not settings.rerank_enabled:
-        return search(question, top_k=k, collection=collection, embed_fn=embed_fn)
+        return search(question, top_k=k, collection=collection, embed_fn=embed_fn), None
 
     # 候选池要比最终条数宽，精排才有腾挪空间
     candidates = max(k, settings.rerank_candidates, 1)
@@ -145,6 +192,22 @@ def search_ranked(
 
     # 库里就这么几条，全都要了，精排只是白花一次调用
     if len(hits) <= k:
-        return hits
+        return hits, None
 
-    return rerank_hits(question, hits, top_k=k, rerank_fn=rerank_fn)
+    sink: list[str] = []
+    ranked = rerank_hits(question, hits, top_k=k, rerank_fn=rerank_fn, error_sink=sink)
+    return ranked, (sink[0] if sink else None)
+
+
+def search_ranked(
+    question: str,
+    top_k: int | None = None,
+    collection=None,
+    embed_fn: Callable[[str], list[float]] | None = None,
+    rerank_fn: RerankFn | None = None,
+) -> list[Hit]:
+    """完整召回链路（只要结果）。要看精排状态请用 ``search_ranked_ex``。"""
+    hits, _ = search_ranked_ex(
+        question, top_k=top_k, collection=collection, embed_fn=embed_fn, rerank_fn=rerank_fn
+    )
+    return hits

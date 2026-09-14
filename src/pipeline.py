@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Callable, Sequence
 
 from src.generate import Answer, generate, normalize_history
-from src.retrieve import search_ranked
+from src.retrieve import search_ranked_ex
 from src.rewrite import rewrite_question
 
 NO_HIT_ANSWER = "知识库中没有检索到相关内容。请先上传或放入文档并重建索引，再提问。"
@@ -44,7 +44,7 @@ def answer_question(
     rewritten = standalone != question
 
     # 2. 宽召回 + 精排
-    hits = search_ranked(
+    hits, rerank_error = search_ranked_ex(
         standalone,
         top_k=top_k,
         collection=collection,
@@ -54,10 +54,13 @@ def answer_question(
 
     # 3. 没命中就直说，不硬凑答案 —— 知识库答不了的问题不该由模型自由发挥
     if not hits:
-        return Answer(text=NO_HIT_ANSWER, query=standalone, rewritten=rewritten)
+        return Answer(
+            text=NO_HIT_ANSWER, query=standalone, rewritten=rewritten, rerank_error=rerank_error
+        )
 
     # 4. 生成：用用户原话提问（读起来更自然），但结论只许来自本轮召回片段
     answer = generate(question, hits, history=history, chat_fn=chat_fn)
     answer.query = standalone
     answer.rewritten = rewritten
+    answer.rerank_error = rerank_error
     return answer

@@ -95,7 +95,14 @@ def test_used_citations_ignores_non_numeric_brackets():
 def test_answer_as_dict_shape():
     payload = generate("问题", HITS, chat_fn=lambda _: "回答").as_dict()
 
-    assert set(payload) == {"answer", "citations", "query", "rewritten"}
+    assert set(payload) == {
+        "answer",
+        "citations",
+        "query",
+        "rewritten",
+        "rerank_failed",
+        "rerank_error",
+    }
     assert payload["answer"] == "回答"
 
 
