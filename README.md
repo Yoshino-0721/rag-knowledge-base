@@ -3,8 +3,26 @@
 ![Python](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?logo=fastapi&logoColor=white)
 ![ChromaDB](https://img.shields.io/badge/ChromaDB-local-FF6B6B)
-![Tests](https://img.shields.io/badge/tests-315%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-346%20passed-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-blue)
+
+## ⚠️ 部署前必读（安全）
+
+**本项目不执行 AI 生成的代码，无代码执行风险。生产部署必须设置 `JWT_SECRET`、
+强管理员口令（严禁使用弱口令）并启用 HTTPS。关于代码执行层的隔离设计与威胁模型，
+请参见姊妹项目 `data-analyst-agent` 的相关文档（`docs/sandbox-threat-model.md`
+与 `docs/executor-interface.md`）。**
+
+三点说明：
+
+- **`JWT_SECRET` 必填**：`APP_ENV != dev` 时服务启动即校验，缺了**直接拒绝启动** ——
+  随机生成的密钥只落在 `storage/`，容器重建即丢，所有人会被静默强制重新登录；
+  多实例部署更是各签各的，请求落到另一台就 401。
+- **管理员口令零弱口令**：不设 `ADMIN_PASSWORD` 时生成随机强口令并**强制首次登录改密**
+  （改密前除 `/api/auth/me` 外一律 403）；显式设了弱口令（如 `admin123`）服务**拒绝启动**。
+- **必须启用 HTTPS**：登录态走 `Authorization: Bearer <token>`，明文 HTTP 下 token
+  可被中间人截获，等同于账号泄露。
+
 
 把散落在本机的 PDF、Word、PPT、Markdown 变成**可溯源**的问答知识库。
 多用户共用一套服务，但**每个人的文档、向量库、会话都互相看不见**。
@@ -154,7 +172,7 @@ flowchart LR
 | 精排 | 智谱 `rerank`（**非** OpenAI 兼容协议，直接发 HTTP 请求，复用同一个 Key） |
 | 文档解析 | PyMuPDF / python-docx / python-pptx / 原生读取 |
 | 前端 | 原生 HTML + JS，无需构建，**不引任何 CDN** |
-| 测试 | pytest（315 项） |
+| 测试 | pytest（346 项） |
 
 > 说明：**未引入 LangChain**。本项目链路只有「检索 → 拼 Prompt → 调用模型」，
 > 原生实现更短更透明、出错好定位；等将来需要多路检索或 Agent 编排时再评估。
@@ -325,7 +343,7 @@ docker compose up -d --build
 pytest
 ```
 
-315 项测试全部使用桩对象，不发起真实 API 调用，也不会改动真实的 `.env`。
+346 项测试全部使用桩对象，不发起真实 API 调用，也不会改动真实的 `.env`。
 其中多用户部分专门覆盖了**跨用户越权**（A 读不到 B 的会话 / 文档，一律 404）、
 **普通用户 403**、**禁用用户拒绝登录**、**JWT 过期与伪造拒绝**、
 **消息落库后重启不丢**，以及**删除钩子拦截删除时主流程不受影响**。
