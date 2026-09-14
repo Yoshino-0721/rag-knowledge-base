@@ -16,13 +16,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
-from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session as OrmSession
 
+from src import upload_guard
 from src.admin_api import router as admin_router
 from src.auth.api import router as auth_router
 from src.auth.db import init_db
@@ -176,13 +177,23 @@ def update_settings_endpoint(
 
 @app.post("/upload")
 async def upload_endpoint(
+    request: Request,
     files: list[UploadFile] = File(...),
     user: User = Depends(get_current_user),
     db: OrmSession = Depends(get_db),
 ) -> dict:
-    """接收上传的文档，落盘到该用户的目录后立即增量建库。"""
+    """接收上传的文档，落盘到该用户的目录后立即增量建库。
+
+    体积上限走**两道闸门**（见 ``src/upload_guard.py``）：先按 Content-Length
+    快速拒绝，再在读取时按累计字节兜底 —— 只信请求头会被伪造头或
+    ``Transfer-Encoding: chunked`` 绕过。
+    """
     if not files:
         raise HTTPException(status_code=400, detail="没有收到文件")
+
+    upload_guard.enforce_content_length(request)
+    # 整次请求共享一份预算：多个文件各自 49 MiB 也仍然写不爆磁盘
+    budget = upload_guard.limit_bytes()
 
     paths = user_paths(settings, user.id)
     saved: list[str] = []
@@ -194,9 +205,11 @@ async def upload_endpoint(
         if not name or Path(name).suffix.lower() not in SUPPORTED_SUFFIXES:
             skipped.append(name or "(未命名文件)")
             continue
+        content = await upload_guard.read_within_limit(upload, budget)
+        budget -= len(content)
         target = paths.data_dir / name
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(await upload.read())
+        target.write_bytes(content)
         saved.append(name)
 
     if not saved:
@@ -356,20 +369,19 @@ def query_endpoint(
         raise HTTPException(status_code=400, detail="问题不能为空")
 
     if payload.session_id is None:
-        chat_session = ChatSession(user_id=user.id, title=question[:50])
-        db.add(chat_session)
-        db.commit()
-        db.refresh(chat_session)
+        # **先不建会话**：跑成功了才落库，失败请求不在库里留任何痕迹。
+        # 新会话本来就没有历史，所以延后创建不影响上下文。
+        chat_session = None
+        history: list[dict] = []
     else:
         chat_session = _own_session(db, user, payload.session_id)
-
-    history = [
-        {"role": m.role, "content": m.content}
-        for m in db.query(Message)
-        .filter_by(session_id=chat_session.id)
-        .order_by(Message.id)
-        .all()
-    ]
+        history = [
+            {"role": m.role, "content": m.content}
+            for m in db.query(Message)
+            .filter_by(session_id=chat_session.id)
+            .order_by(Message.id)
+            .all()
+        ]
 
     paths = user_paths(settings, user.id)
     collection = get_collection(paths.collection_name)
@@ -381,6 +393,12 @@ def query_endpoint(
     except RuntimeError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    if chat_session is None:
+        chat_session = ChatSession(user_id=user.id, title=question[:50])
+        db.add(chat_session)
+        # flush 只为拿到自增 id，**不提交事务**：上面任何失败都会让整个事务回滚，
+        # 不会留下一条没有任何消息的会话行。
+        db.flush()
     db.add(Message(session_id=chat_session.id, role="user", content=question))
     db.add(
         Message(

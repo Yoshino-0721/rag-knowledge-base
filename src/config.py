@@ -71,6 +71,8 @@ class Settings:
     # 登录节流：同一账号连续失败 N 次后锁定 M 秒（见 src/auth/throttle.py）
     login_max_failures: int = 5
     login_lock_seconds: int = 300
+    # 单次上传请求的总体积上限（字节）。默认 50 MiB。见 src/upload_guard.py
+    max_upload_size: int = 52428800
     # 多轮对话
     history_turns: int = 6
     rewrite_enabled: bool = True
@@ -133,6 +135,7 @@ def load_settings() -> Settings:
         allow_registration=_get_bool("ALLOW_REGISTRATION", "false"),
         login_max_failures=int(_get("LOGIN_MAX_FAILURES", "5")),
         login_lock_seconds=int(_get("LOGIN_LOCK_SECONDS", "300")),
+        max_upload_size=int(_get("MAX_UPLOAD_SIZE", "52428800")),
         history_turns=int(_get("HISTORY_TURNS", "6")),
         rewrite_enabled=_get_bool("QUERY_REWRITE", "true"),
         rerank_enabled=_get_bool("RERANK_ENABLED", "true"),

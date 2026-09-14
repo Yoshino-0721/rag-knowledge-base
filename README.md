@@ -3,7 +3,7 @@
 ![Python](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?logo=fastapi&logoColor=white)
 ![ChromaDB](https://img.shields.io/badge/ChromaDB-local-FF6B6B)
-![Tests](https://img.shields.io/badge/tests-373%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-390%20passed-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
 ## ⚠️ 部署前必读（安全）
@@ -172,7 +172,7 @@ flowchart LR
 | 精排 | 智谱 `rerank`（**非** OpenAI 兼容协议，直接发 HTTP 请求，复用同一个 Key） |
 | 文档解析 | PyMuPDF / python-docx / python-pptx / 原生读取 |
 | 前端 | 原生 HTML + JS，无需构建，**不引任何 CDN** |
-| 测试 | pytest（373 项） |
+| 测试 | pytest（390 项） |
 
 > 说明：**未引入 LangChain**。本项目链路只有「检索 → 拼 Prompt → 调用模型」，
 > 原生实现更短更透明、出错好定位；等将来需要多路检索或 Agent 编排时再评估。
@@ -294,6 +294,7 @@ docker compose up -d --build
 | `ALLOW_REGISTRATION` | `false` | 是否允许自助注册。**默认关闭**：公网部署下任何人注册成功都会消耗**站点共用**的 API Key 额度。要开通成员时临时设为 `true` 并重启，开通完改回 `false` |
 | `LOGIN_MAX_FAILURES` | `5` | 同一账号连续登录失败多少次后锁定 |
 | `LOGIN_LOCK_SECONDS` | `300` | 锁定时长（秒）。锁定期内登录返回 429 + `Retry-After` |
+| `MAX_UPLOAD_SIZE` | `52428800` | 单次上传请求的**总体积**上限（字节，默认 50 MiB）。超限返回 413；多文件共享同一份预算 |
 | `STORAGE_DIR` | `<仓库>/storage` | 落盘根目录（SQLite、索引清单、向量库） |
 | `DATA_DIR` | `<仓库>/data` | 文档根目录，实际按 `users/<id>/` 分用户存放 |
 
@@ -311,7 +312,7 @@ docker compose up -d --build
 | POST | `/api/auth/login` | 登录，body `{"account","password"}`；`account` 可填用户名或邮箱 |
 | GET | `/api/auth/me` | 当前登录用户 |
 | POST | `/api/auth/change-password` | 改密，body `{"old_password","new_password"}` |
-| POST | `/upload` | 上传文档（multipart，字段名 `files`），自动增量建库（限本人） |
+| POST | `/upload` | 上传文档（multipart，字段名 `files`），自动增量建库（限本人）；总量超过 `MAX_UPLOAD_SIZE` 返回 **413** |
 | POST | `/ingest` | 重建索引，body `{"force": false}`；`force=true` 全量重建 |
 | GET | `/api/documents` | 当前用户的文档列表 |
 | DELETE | `/api/documents/{id}` | 删除文档（删文件 → 清向量 → 删清单 → 删表行；文件删不掉时改名挪开） |
@@ -349,7 +350,7 @@ docker compose up -d --build
 pytest
 ```
 
-373 项测试全部使用桩对象，不发起真实 API 调用，也不会改动真实的 `.env`。
+390 项测试全部使用桩对象，不发起真实 API 调用，也不会改动真实的 `.env`。
 其中多用户部分专门覆盖了**跨用户越权**（A 读不到 B 的会话 / 文档，一律 404）、
 **普通用户 403**、**禁用用户拒绝登录**、**JWT 过期与伪造拒绝**、
 **消息落库后重启不丢**，以及**删除钩子拦截删除时主流程不受影响**。
