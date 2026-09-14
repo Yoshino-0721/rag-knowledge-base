@@ -92,12 +92,18 @@ def test_example_questions_are_wired():
 
 
 def test_multi_turn_conversation_is_wired():
-    """多轮对话：上下文要由前端携带，并提供清空入口。"""
+    """多轮对话：历史已由服务端按 session_id 从库中读取，前端不再携带。
+
+    ``conversation`` / ``remember`` / ``clearConversation`` 仍然保留（本地记账 +
+    清空入口），但提问请求里只出现 ``session_id`` —— 老协议必须消失，否则等于
+    客户端还在自维护历史，服务端那份就是死数据。
+    """
     assert "conversation" in HTML
     assert "remember(" in HTML
     assert "clearConversation" in HTML
-    # 提问时必须把历史一起发出去
-    assert "history: conversation" in HTML
+    # 提问时只报会话号，历史由服务端从库里读
+    assert "session_id" in HTML
+    assert "history: conversation" not in HTML
 
 
 def test_rewrite_hint_is_rendered():

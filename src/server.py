@@ -1,4 +1,4 @@
-﻿"""FastAPI 服务：提供建库、上传、问答、会话与设置接口，并托管前端页面。
+"""FastAPI 服务：提供建库、上传、问答、会话与设置接口，并托管前端页面。
 
 多用户改造后的职责边界：
 - 登录态：除 /health 与页面外全部接口需要 Bearer token（``get_current_user``）；
@@ -401,6 +401,11 @@ def query_endpoint(
 @app.get("/")
 def index() -> FileResponse:
     return FileResponse(WEB_DIR / "index.html")
+
+
+@app.get("/login")
+def login_page() -> FileResponse:
+    return FileResponse(WEB_DIR / "login.html")
 
 
 if WEB_DIR.exists():

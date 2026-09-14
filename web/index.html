@@ -37,6 +37,9 @@
 
   * { box-sizing: border-box; }
 
+  /* 作者样式里的 display 会盖掉 UA 的 [hidden]{display:none}，这里补一条兜底 */
+  [hidden] { display: none !important; }
+
   html, body { height: 100%; }
 
   body {
@@ -54,13 +57,143 @@
 
   /* ---------------- 布局 ---------------- */
   .app {
-    max-width: 920px;
+    max-width: 1180px;
     margin: 0 auto;
     height: 100dvh;
     display: flex;
-    flex-direction: column;
+    gap: 18px;
     padding: 0 20px;
   }
+
+  /* 右侧主工作区：顶栏 / 消息区 / 输入区仍按原来的纵向三段排 */
+  .workspace {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ---------------- 会话侧栏 ---------------- */
+  .sidebar {
+    width: 246px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 16px 16px 16px 0;
+    border-right: 1px solid var(--border);
+  }
+
+  .sidebar-head { display: flex; align-items: center; gap: 8px; }
+
+  .sidebar-title {
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    margin-right: auto;
+  }
+
+  .new-session-btn {
+    width: 100%;
+    justify-content: center;
+    font-size: 13px;
+  }
+
+  .session-list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0 -4px;
+    padding: 0 4px;
+  }
+  .session-list::-webkit-scrollbar { width: 8px; }
+  .session-list::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
+  .session-list::-webkit-scrollbar-track { background: transparent; }
+
+  .session-empty {
+    padding: 10px 4px;
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+
+  .session-item {
+    display: flex;
+    align-items: stretch;
+    gap: 2px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+    transition: border-color .15s, background .15s;
+  }
+  .session-item:hover { border-color: var(--accent-border); }
+  .session-item.active { border-color: var(--accent-border); background: var(--accent-soft); }
+
+  .session-open {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    text-align: left;
+    padding: 8px 10px;
+    border: none;
+    background: transparent;
+    color: var(--text);
+  }
+  .session-title {
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .session-time { font-size: 11px; color: var(--muted); }
+
+  .session-del {
+    flex-shrink: 0;
+    width: 26px;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    font-size: 15px;
+    line-height: 1;
+    transition: color .15s, background .15s;
+  }
+  .session-del:hover { color: var(--danger); background: var(--danger-soft); }
+
+  /* ---------------- 顶栏账号区 ---------------- */
+  .user-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 190px;
+    padding: 5px 11px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    font-size: 12px;
+    color: var(--text-2);
+    white-space: nowrap;
+  }
+  .user-badge .user-name { overflow: hidden; text-overflow: ellipsis; }
+  .user-badge .role-badge {
+    flex-shrink: 0;
+    font-size: 10.5px;
+    font-weight: 600;
+    border-radius: 5px;
+    padding: 1px 6px;
+    color: var(--muted);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+  }
+  .user-badge .role-badge.admin { color: var(--accent); background: var(--accent-soft); border-color: var(--accent-border); }
 
   /* ---------------- 顶栏 ---------------- */
   .topbar {
@@ -762,6 +895,33 @@
   }
   .field-gap { margin-top: 13px; }
 
+  /* 窄屏：侧栏从左侧竖栏变成顶部横条，主工作区占满 */
+  @media (max-width: 900px) {
+    .app { flex-direction: column; gap: 0; }
+    .sidebar {
+      width: auto;
+      flex-direction: row;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 0;
+      border-right: 0;
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+    }
+    .sidebar-head { flex-shrink: 0; }
+    .sidebar-title { display: none; }
+    .new-session-btn { width: auto; white-space: nowrap; }
+    .session-list {
+      flex-direction: row;
+      overflow-x: auto;
+      overflow-y: hidden;
+      margin: 0;
+      padding: 0;
+    }
+    .session-item { flex-shrink: 0; max-width: 190px; }
+    .session-empty { white-space: nowrap; }
+  }
+
   @media (max-width: 720px) {
     .app { padding: 0 12px; }
     .topbar { padding: 12px 0 11px; gap: 10px; }
@@ -769,6 +929,8 @@
     .pill { display: none; }
     .btn { padding: 8px; }
     .btn .btn-label { display: none; }
+    .user-badge { padding: 6px 9px; max-width: 122px; }
+    .user-badge .role-badge { display: none; }
     .logo { width: 34px; height: 34px; border-radius: 10px; }
     main { padding: 16px 0; gap: 14px; }
     .bubble { max-width: 92%; font-size: 13.5px; }
@@ -792,6 +954,23 @@
 </head>
 <body>
 <div class="app">
+  <aside class="sidebar" aria-label="会话列表">
+    <div class="sidebar-head">
+      <span class="sidebar-title">我的会话</span>
+    </div>
+
+    <button class="btn new-session-btn" id="newSessionBtn" title="新建会话">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 5v14M5 12h14"/>
+      </svg>
+      <span class="btn-label">新建会话</span>
+    </button>
+
+    <div class="session-list" id="sessionList"></div>
+  </aside>
+
+  <div class="workspace">
   <header class="topbar">
     <div class="brand">
       <span class="logo" aria-hidden="true">
@@ -851,6 +1030,24 @@
         </svg>
         <span class="btn-label">设置</span>
       </button>
+
+      <span class="user-badge" id="userBadge"></span>
+
+      <button class="btn" id="changePwdBtn" title="修改密码">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="4" y="10.5" width="16" height="10" rx="2.5"/>
+          <path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/>
+        </svg>
+      </button>
+
+      <button class="btn" id="logoutBtn" title="退出登录">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/>
+          <path d="M10 16.5 14.5 12 10 7.5"/><path d="M14 12H3"/>
+        </svg>
+      </button>
     </div>
   </header>
 
@@ -867,7 +1064,7 @@
       <p>答案只依据知识库内容生成，并标注来源文件与页码 —— 你可以逐条核对，而不是盲信模型。</p>
 
       <ol class="steps">
-        <li><b>配置</b><span>点右上角「设置」填入智谱 API Key（一次性）</span></li>
+        <li id="stepConfig"><b>配置</b><span>点右上角「设置」填入智谱 API Key（一次性）</span></li>
         <li><b>入库</b><span>上传或直接拖入 PDF / Word / PPT / Markdown</span></li>
         <li><b>提问</b><span>提问即可，答案附带引用来源；接着追问「它的优势是什么」也没问题，会自动带上上下文</span></li>
       </ol>
@@ -900,6 +1097,7 @@
       <span class="tech">智谱 GLM · ChromaDB 本地向量库</span>
     </div>
   </footer>
+  </div>
 </div>
 
 <div class="overlay" id="overlay">
@@ -923,7 +1121,7 @@
           <input type="password" id="keyInput" autocomplete="off" spellcheck="false"
                  placeholder="粘贴你的 API Key">
           <div class="tip" id="keyTip">
-            申请地址：<a href="https://bigmodel.cn/usercenter/apikeys" target="_blank" rel="noopener">bigmodel.cn/usercenter/apikeys</a>
+            申请地址：bigmodel.cn/usercenter/apikeys
           </div>
         </div>
         <div class="row">
@@ -1001,6 +1199,41 @@
   </div>
 </div>
 
+<div class="overlay" id="pwdOverlay">
+  <div class="panel" role="dialog" aria-modal="true" aria-labelledby="pwdTitle">
+    <div class="panel-head">
+      <div>
+        <h2 id="pwdTitle">修改密码</h2>
+        <p class="sub">改完立即生效，下次登录请使用新密码。</p>
+      </div>
+      <button class="icon-btn" id="pwdCloseBtn" title="关闭">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <div class="panel-body">
+      <div class="field">
+        <label for="oldPwdInput">原密码</label>
+        <input type="password" id="oldPwdInput" autocomplete="current-password"
+               placeholder="当前使用的密码">
+      </div>
+      <div class="field field-gap">
+        <label for="newPwdInput">新密码（至少 6 位）</label>
+        <input type="password" id="newPwdInput" autocomplete="new-password"
+               placeholder="新密码">
+      </div>
+    </div>
+
+    <div class="notice" id="pwdNotice"></div>
+
+    <div class="actions">
+      <button id="pwdCancelBtn">取消</button>
+      <button id="pwdSaveBtn" class="primary">保存</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast" role="status" aria-live="polite"></div>
 
 <script>
@@ -1032,10 +1265,32 @@ const historyTurnsInput = document.getElementById('historyTurnsInput');
 const rerankToggle = document.getElementById('rerankToggle');
 const rerankCandidatesInput = document.getElementById('rerankCandidatesInput');
 
-/* 对话上下文存在前端，服务端不保存会话 —— 重启服务也不丢，且天然支持多开标签页 */
+const sessionList = document.getElementById('sessionList');
+const newSessionBtn = document.getElementById('newSessionBtn');
+const userBadge = document.getElementById('userBadge');
+const changePwdBtn = document.getElementById('changePwdBtn');
+const logoutBtn = document.getElementById('logoutBtn');
+const stepConfig = document.getElementById('stepConfig');
+
+const pwdOverlay = document.getElementById('pwdOverlay');
+const oldPwdInput = document.getElementById('oldPwdInput');
+const newPwdInput = document.getElementById('newPwdInput');
+const pwdSaveBtn = document.getElementById('pwdSaveBtn');
+const pwdCancelBtn = document.getElementById('pwdCancelBtn');
+const pwdCloseBtn = document.getElementById('pwdCloseBtn');
+const pwdNotice = document.getElementById('pwdNotice');
+
+/* 登录态：token 存 localStorage，所有请求经 apiFetch 自动带上 Bearer */
+const TOKEN_KEY = 'auth_token';
+const USER_KEY = 'auth_user';
+
+/* 会话记录由服务端持有（sessions / messages 两张表），前端只记住当前会话 id */
+let currentUser = null;
+let currentSessionId = null;
+
+/* 当前会话在前端的镜像：只用于「清空对话」按钮的显隐，不再随请求发给服务端 */
 let conversation = [];
-// 客户端也只留最近若干轮，避免请求体无限膨胀；服务端还会按配置再裁一次
-const MAX_CLIENT_TURNS = 20;
+const MAX_CLIENT_TURNS = 20; // 一轮 = 一问一答
 
 const ICON_FILE =
   '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
@@ -1048,6 +1303,55 @@ const ICON_CHEV =
 const ICON_TICK =
   '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
   'stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+
+/* ---------- 登录态与统一请求 ---------- */
+function readToken() {
+  try { return localStorage.getItem(TOKEN_KEY); } catch (err) { return null; }
+}
+
+function readCachedUser() {
+  try { return JSON.parse(localStorage.getItem(USER_KEY) || 'null'); } catch (err) { return null; }
+}
+
+function cacheUser(user) {
+  try { localStorage.setItem(USER_KEY, JSON.stringify(user || {})); } catch (err) { /* 隐私模式 */ }
+}
+
+function clearAuth() {
+  try {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
+  } catch (err) { /* 隐私模式 */ }
+}
+
+function goLogin() {
+  location.replace('/login');
+}
+
+/** 统一请求封装：自动带 Bearer、401 一律清 token 回登录页、非 2xx 抛 Error(detail)。 */
+async function apiFetch(url, options) {
+  const opts = Object.assign({}, options || {});
+  const headers = Object.assign({}, opts.headers || {});
+  const token = readToken();
+  if (token) headers.Authorization = 'Bearer ' + token;
+  opts.headers = headers;
+
+  const resp = await fetch(url, opts);
+  if (resp.status === 401) {
+    clearAuth();
+    goLogin();
+    throw new Error('登录已失效，请重新登录');
+  }
+
+  const text = await resp.text();
+  let data = null;
+  if (text) { try { data = JSON.parse(text); } catch (err) { data = null; } }
+  if (!resp.ok) {
+    const detail = data && data.detail;
+    throw new Error(typeof detail === 'string' ? detail : '请求失败（HTTP ' + resp.status + '）');
+  }
+  return data || {};
+}
 
 /* ---------- 状态与轻提示 ---------- */
 function setStatus(text, kind) {
@@ -1067,7 +1371,9 @@ function toast(text, isError) {
 
 /* ---------- 文本渲染 ---------- */
 function escapeHtml(value) {
-  return String(value).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  return String(value).replace(/[&<>"']/g, c => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ));
 }
 
 // 行内标记：`code`、**粗体**、[1] 引用角标
@@ -1161,12 +1467,14 @@ function remember(role, content) {
   syncClearButton();
 }
 
+/** 「清空对话」与「新建会话」是同一件事：当前会话置空，下一问由服务端新建。 */
 function clearConversation() {
   conversation = [];
-  messages.querySelectorAll('.msg').forEach(node => node.remove());
-  if (welcome) welcome.classList.remove('gone');
+  currentSessionId = null;
+  clearMessages();
+  syncSessionHighlight();
   syncClearButton();
-  toast('已清空对话，下一问将不带上下文');
+  toast('已开始新会话');
 }
 
 // 把「实际用于检索的问题」显示出来，方便核对追问改写是否符合原意
@@ -1304,14 +1612,139 @@ function renderReport(bubble, data, extraLines) {
 
 /* ---------- 请求 ---------- */
 async function postJSON(url, payload) {
-  const resp = await fetch(url, {
+  return apiFetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
   });
-  const data = await resp.json();
-  if (!resp.ok) throw new Error(data.detail || '请求失败');
-  return data;
+}
+
+/* ---------- 会话侧栏 ---------- */
+function formatTime(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (isNaN(date.getTime())) return '';
+  const pad = n => String(n).padStart(2, '0');
+  return pad(date.getMonth() + 1) + '-' + pad(date.getDate()) + ' ' +
+    pad(date.getHours()) + ':' + pad(date.getMinutes());
+}
+
+function syncSessionHighlight() {
+  sessionList.querySelectorAll('.session-item').forEach(node => {
+    node.classList.toggle('active', Number(node.dataset.id) === currentSessionId);
+  });
+}
+
+function renderSessions(sessions) {
+  sessionList.textContent = '';
+  if (!sessions.length) {
+    const empty = document.createElement('div');
+    empty.className = 'session-empty';
+    empty.textContent = '还没有会话，提问就会自动建一个';
+    sessionList.appendChild(empty);
+    return;
+  }
+
+  for (const item of sessions) {
+    const row = document.createElement('div');
+    row.className = 'session-item';
+    row.dataset.id = item.id;
+
+    const open = document.createElement('button');
+    open.type = 'button';
+    open.className = 'session-open';
+    const title = document.createElement('span');
+    title.className = 'session-title';
+    // 标题是用户输入 / 模型产物，用 textContent 写入，不拼 HTML
+    title.textContent = item.title || '新会话';
+    const time = document.createElement('span');
+    time.className = 'session-time';
+    time.textContent = formatTime(item.updated_at || item.created_at);
+    open.appendChild(title);
+    open.appendChild(time);
+    open.addEventListener('click', () => openSession(item.id));
+
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'session-del';
+    remove.title = '删除会话';
+    remove.textContent = '×';
+    remove.addEventListener('click', event => {
+      event.stopPropagation();
+      removeSession(item.id, title.textContent);
+    });
+
+    row.appendChild(open);
+    row.appendChild(remove);
+    sessionList.appendChild(row);
+  }
+  syncSessionHighlight();
+}
+
+async function loadSessions() {
+  try {
+    const data = await apiFetch('/api/sessions');
+    renderSessions(data.sessions || []);
+  } catch (err) {
+    toast('会话列表读取失败：' + err.message, true);
+  }
+}
+
+/** 清空聊天区（不动会话本身），历史回放与开新会话共用。 */
+function clearMessages() {
+  messages.querySelectorAll('.msg').forEach(node => node.remove());
+  if (welcome) welcome.classList.remove('gone');
+}
+
+/** 历史回放：与「刚答完」走同一套渲染，两边不会各长一副样子。 */
+async function openSession(sessionId) {
+  try {
+    const data = await apiFetch('/api/sessions/' + sessionId + '/messages');
+
+    currentSessionId = sessionId;
+    conversation = [];
+    clearMessages();
+
+    for (const message of data.messages || []) {
+      if (message.role === 'user') {
+        addMessage('user', message.content);
+        remember('user', message.content);
+        continue;
+      }
+      if (message.role !== 'assistant') continue;
+
+      const bubble = addMessage('assistant', message.content);
+      bubble.innerHTML = renderRich(message.content || '');
+      const meta = message.meta || {};
+      if (meta.rewritten && meta.query) renderRewritten(bubble, meta.query);
+      renderCitations(bubble, meta.citations);
+      remember('assistant', message.content);
+    }
+
+    syncSessionHighlight();
+    syncClearButton();
+    messages.scrollTop = 0;
+  } catch (err) {
+    toast('会话打开失败：' + err.message, true);
+  }
+}
+
+async function removeSession(sessionId, title) {
+  if (!window.confirm('删除会话「' + title + '」？聊天记录会一并删除，且不可恢复。')) return;
+
+  try {
+    await apiFetch('/api/sessions/' + sessionId, { method: 'DELETE' });
+    if (currentSessionId === sessionId) {
+      currentSessionId = null;
+      conversation = [];
+      clearMessages();
+      syncClearButton();
+    }
+    toast('已删除会话');
+    await loadSessions();
+  } catch (err) {
+    toast('删除失败：' + err.message, true);
+  }
 }
 
 async function ask() {
@@ -1327,17 +1760,23 @@ async function ask() {
   const bubble = addThinking();
 
   try {
-    // 对话历史随请求带上，服务端不保存会话状态
-    const data = await postJSON('/query', { question, history: conversation });
+    // 历史由服务端按 session_id 从库里读，前端只报会话号；session_id 为 null 时服务端新建会话
+    const data = await postJSON('/query', {
+      session_id: currentSessionId,
+      question: question,
+      top_k: null
+    });
     // 统一走 renderRich：它内部先 escapeHtml 再拼 HTML，纯文本答案同样安全
     bubble.innerHTML = renderRich(data.answer);
     if (data.rewritten && data.query) renderRewritten(bubble, data.query);
     renderCitations(bubble, data.citations);
 
-    // 记入上下文，下次追问才能带上
+    if (data.session_id) currentSessionId = data.session_id;
+    // conversation 仍在本地记账（清空按钮的显隐要用），但只记不发
     remember('user', question);
     remember('assistant', data.answer);
     setStatus('就绪');
+    loadSessions(); // 新会话 / 标题变了，侧栏跟着刷新
   } catch (err) {
     bubble.textContent = '出错了：' + err.message;
     setStatus('出错', 'err');
@@ -1375,9 +1814,7 @@ async function uploadFiles(fileList) {
   setStatus('上传中…', 'busy');
   const bubble = addThinking();
   try {
-    const resp = await fetch('/upload', { method: 'POST', body: form });
-    const data = await resp.json();
-    if (!resp.ok) throw new Error(data.detail || '上传失败');
+    const data = await apiFetch('/upload', { method: 'POST', body: form });
 
     renderReport(bubble, data, {
       title: '已入库 ' + data.saved.length + ' 个文件',
@@ -1435,8 +1872,7 @@ function closeSettings() { overlay.classList.remove('open'); }
 
 async function loadSettings() {
   try {
-    const resp = await fetch('/settings');
-    const data = await resp.json();
+    const data = await apiFetch('/settings');
     fillForm(data);
     if (!data.api_key_set) {
       openSettings();
@@ -1481,57 +1917,158 @@ async function saveSettings() {
   }
 }
 
+/* ---------- 账号 ---------- */
+function applyUser(user) {
+  currentUser = user || {};
+  const isAdmin = currentUser.role === 'admin';
+
+  userBadge.textContent = '';
+  const name = document.createElement('span');
+  name.className = 'user-name';
+  name.textContent = currentUser.username || '未登录';
+  const role = document.createElement('span');
+  role.className = 'role-badge' + (isAdmin ? ' admin' : '');
+  role.textContent = isAdmin ? '管理员' : '普通用户';
+  userBadge.appendChild(name);
+  userBadge.appendChild(role);
+
+  // 站点设置只对管理员开放：普通用户连入口都不显示，启动时也不会去拉 /settings（那是 403）
+  settingsBtn.hidden = !isAdmin;
+  if (stepConfig) stepConfig.hidden = !isAdmin;
+}
+
+function showPwdNotice(text) {
+  pwdNotice.textContent = text;
+  pwdNotice.classList.add('show');
+}
+
+function openPwdDialog() {
+  pwdNotice.textContent = '';
+  pwdNotice.classList.remove('show');
+  oldPwdInput.value = '';
+  newPwdInput.value = '';
+  pwdOverlay.classList.add('open');
+  setTimeout(() => oldPwdInput.focus(), 40);
+}
+
+function closePwdDialog() { pwdOverlay.classList.remove('open'); }
+
+async function savePassword() {
+  const oldPwd = oldPwdInput.value;
+  const newPwd = newPwdInput.value;
+  if (!oldPwd) { showPwdNotice('请输入原密码'); return; }
+  if (newPwd.length < 6) { showPwdNotice('新密码至少 6 位'); return; }
+
+  pwdSaveBtn.disabled = true;
+  try {
+    await postJSON('/api/auth/change-password', {
+      old_password: oldPwd,
+      new_password: newPwd
+    });
+    closePwdDialog();
+    toast('密码已修改');
+  } catch (err) {
+    showPwdNotice('修改失败：' + err.message);
+  } finally {
+    pwdSaveBtn.disabled = false;
+  }
+}
+
+function logout() {
+  clearAuth();
+  goLogin();
+}
+
 /* ---------- 输入框 ---------- */
 function autoGrow() {
   input.style.height = 'auto';
   input.style.height = Math.min(input.scrollHeight, 140) + 'px';
 }
 
-sendBtn.addEventListener('click', ask);
-ingestBtn.addEventListener('click', rebuildIndex);
-clearBtn.addEventListener('click', clearConversation);
-uploadBtn.addEventListener('click', () => filePicker.click());
-filePicker.addEventListener('change', () => uploadFiles(filePicker.files));
-settingsBtn.addEventListener('click', openSettings);
-cancelBtn.addEventListener('click', closeSettings);
-closeBtn.addEventListener('click', closeSettings);
-saveBtn.addEventListener('click', saveSettings);
-overlay.addEventListener('click', event => { if (event.target === overlay) closeSettings(); });
-document.addEventListener('keydown', event => {
-  if (event.key === 'Escape' && overlay.classList.contains('open')) closeSettings();
-});
-
-input.addEventListener('input', autoGrow);
-input.addEventListener('keydown', event => {
-  if (event.key === 'Enter' && !event.shiftKey) {
-    event.preventDefault();
-    ask();
-  }
-});
-
-// 示例问题：点一下直接提问
-document.querySelectorAll('.chip').forEach(chip => {
-  chip.addEventListener('click', () => {
-    input.value = chip.dataset.q || chip.textContent.trim();
-    autoGrow();
-    ask();
+/* ---------- 事件绑定与启动 ---------- */
+function bindUI() {
+  sendBtn.addEventListener('click', ask);
+  ingestBtn.addEventListener('click', rebuildIndex);
+  clearBtn.addEventListener('click', clearConversation);
+  newSessionBtn.addEventListener('click', clearConversation);
+  uploadBtn.addEventListener('click', () => filePicker.click());
+  filePicker.addEventListener('change', () => uploadFiles(filePicker.files));
+  settingsBtn.addEventListener('click', openSettings);
+  cancelBtn.addEventListener('click', closeSettings);
+  closeBtn.addEventListener('click', closeSettings);
+  saveBtn.addEventListener('click', saveSettings);
+  changePwdBtn.addEventListener('click', openPwdDialog);
+  logoutBtn.addEventListener('click', logout);
+  pwdCancelBtn.addEventListener('click', closePwdDialog);
+  pwdCloseBtn.addEventListener('click', closePwdDialog);
+  pwdSaveBtn.addEventListener('click', savePassword);
+  overlay.addEventListener('click', event => { if (event.target === overlay) closeSettings(); });
+  pwdOverlay.addEventListener('click', event => {
+    if (event.target === pwdOverlay) closePwdDialog();
   });
-});
+  document.addEventListener('keydown', event => {
+    if (event.key !== 'Escape') return;
+    if (overlay.classList.contains('open')) closeSettings();
+    if (pwdOverlay.classList.contains('open')) closePwdDialog();
+  });
 
-window.addEventListener('dragover', event => {
-  event.preventDefault();
-  document.body.classList.add('dragover');
-});
-window.addEventListener('dragleave', event => {
-  if (event.relatedTarget === null) document.body.classList.remove('dragover');
-});
-window.addEventListener('drop', event => {
-  event.preventDefault();
-  document.body.classList.remove('dragover');
-  uploadFiles(event.dataTransfer.files);
-});
+  input.addEventListener('input', autoGrow);
+  input.addEventListener('keydown', event => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      ask();
+    }
+  });
 
-loadSettings();
+  // 示例问题：点一下直接提问
+  document.querySelectorAll('.chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      input.value = chip.dataset.q || chip.textContent.trim();
+      autoGrow();
+      ask();
+    });
+  });
+
+  window.addEventListener('dragover', event => {
+    event.preventDefault();
+    document.body.classList.add('dragover');
+  });
+  window.addEventListener('dragleave', event => {
+    if (event.relatedTarget === null) document.body.classList.remove('dragover');
+  });
+  window.addEventListener('drop', event => {
+    event.preventDefault();
+    document.body.classList.remove('dragover');
+    uploadFiles(event.dataTransfer.files);
+  });
+}
+
+/** 登录闸门：没有 token 直接去登录页；有 token 先问 /api/auth/me 再放行。 */
+async function boot() {
+  bindUI();
+
+  // 先用上次缓存的身份把界面立起来，再用 /api/auth/me 的结果校正
+  const cached = readCachedUser();
+  if (cached) applyUser(cached);
+
+  if (!readToken()) { goLogin(); return; }
+
+  let user = null;
+  try {
+    user = await apiFetch('/api/auth/me'); // 401 时 apiFetch 已清 token 并跳登录页
+  } catch (err) {
+    return;
+  }
+  cacheUser(user);
+  applyUser(user);
+
+  await loadSessions();
+  if (user.role === 'admin') loadSettings();
+}
+
+/* 顶层保持零副作用：ui_render_check 会用 new Function(整个 <script>) 求值，
+   顶层碰 localStorage / location / window.addEventListener 都会把它打崩。 */
+document.addEventListener('DOMContentLoaded', boot);
 </script>
 </body>
 </html>
