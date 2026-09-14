@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import contextvars
+import logging
 
 import os
 
@@ -21,6 +22,7 @@ from pathlib import Path
 from typing import Literal
 
 from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
+from fastapi.responses import JSONResponse
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -36,6 +38,8 @@ from src.auth.models import ChatSession, Document, Message, User
 from src.auth.security import verify_security_config
 from src.config import PROJECT_ROOT, apply_settings, settings
 from src import request_id
+
+logger = logging.getLogger(__name__)
 
 _current_rid = contextvars.ContextVar("request_id_mw", default="-")
 from src.documents import delete_document, document_payload, sync_documents
@@ -137,6 +141,27 @@ async def _attach_request_id(request: Request, call_next):
         _current_rid.reset(token)
     response.headers[request_id.REQUEST_ID_HEADER] = rid
     return response
+
+
+@app.exception_handler(Exception)
+async def _unhandled_exception(request: Request, exc: Exception) -> JSONResponse:
+    """未预期异常一律返回结构化 JSON。
+
+    在此之前 Starlette 会吐 21 字节纯文本 ``Internal Server Error``：前端
+    ``resp.json()`` 直接抛 SyntaxError，只能显示"请求失败（HTTP 500）"，
+    看着像前端 bug，实际是后端返的不是 JSON。
+
+    **对外只给固定文案 + request_id**：异常消息、URL、堆栈一律只进日志 ——
+    用户拿到 id，运维 grep 那个 id 就能捞到完整堆栈，两边都不吃亏。
+    """
+    rid = request_id.of(request)
+    logger.exception("未捕获异常（request_id=%s）：%s", rid, exc)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "服务器内部错误，请稍后重试", "request_id": rid},
+        # 显式加：异常路径上中间件根本没机会给响应加头（探针结论 3）
+        headers={request_id.REQUEST_ID_HEADER: rid},
+    )
 
 
 @app.get("/health")
