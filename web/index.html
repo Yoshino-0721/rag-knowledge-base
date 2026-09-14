@@ -1204,7 +1204,7 @@
     <div class="panel-head">
       <div>
         <h2 id="pwdTitle">修改密码</h2>
-        <p class="sub">改完立即生效，下次登录请使用新密码。</p>
+        <p class="sub" id="pwdSub">改完立即生效，下次登录请使用新密码。</p>
       </div>
       <button class="icon-btn" id="pwdCloseBtn" title="关闭">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -1278,6 +1278,10 @@ const newPwdInput = document.getElementById('newPwdInput');
 const pwdSaveBtn = document.getElementById('pwdSaveBtn');
 const pwdCancelBtn = document.getElementById('pwdCancelBtn');
 const pwdCloseBtn = document.getElementById('pwdCloseBtn');
+// 显式取这两个：以前它们靠"id 自动成为 window 属性"（隐式全局）工作，
+// 而在 Node 里用 DOM 替身驱动脚本时那套不成立 —— 顺手改成显式引用。
+const pwdTitle = document.getElementById('pwdTitle');
+const pwdSub = document.getElementById('pwdSub');
 const pwdNotice = document.getElementById('pwdNotice');
 
 /* 登录态：token 存 localStorage，所有请求经 apiFetch 自动带上 Bearer */
@@ -1942,16 +1946,44 @@ function showPwdNotice(text) {
   pwdNotice.classList.add('show');
 }
 
-function openPwdDialog() {
+/** 是否处于"必须先改密"模式；为真时这个框**关不掉**。 */
+let pwdForced = false;
+/** 强制改密完成时要放行的 boot 等待者。 */
+let pwdForcedResolve = null;
+
+function openPwdDialog(forced) {
+  pwdForced = !!forced;
   pwdNotice.textContent = '';
   pwdNotice.classList.remove('show');
   oldPwdInput.value = '';
   newPwdInput.value = '';
+  pwdTitle.textContent = pwdForced ? '必须先修改密码' : '修改密码';
+  pwdSub.textContent = pwdForced
+    ? '该账号使用的是系统生成的初始口令，改完才能使用其它功能。'
+    : '改完立即生效，下次登录请使用新密码。';
+  // 隐藏而不是禁用：一个点了没反应的按钮比没有按钮更让人困惑。
+  pwdCancelBtn.hidden = pwdForced;
+  pwdCloseBtn.hidden = pwdForced;
+  if (pwdForced) {
+    // 只是**提示**，不是前端校验 —— 口令强度始终由服务端仲裁（前端不复制那套规则）
+    showPwdNotice('服务端要求：至少 12 位，且含大小写 / 数字 / 符号。');
+  }
   pwdOverlay.classList.add('open');
   setTimeout(() => oldPwdInput.focus(), 40);
 }
 
-function closePwdDialog() { pwdOverlay.classList.remove('open'); }
+function closePwdDialog() {
+  // 强制改密时不能关：取消按钮、右上角关闭、点遮罩、按 Esc 四条路都走这里，
+  // 所以一个守卫就够 —— 服务端本来也不会放行，前端不该假装能跳过。
+  if (pwdForced) return;
+  pwdOverlay.classList.remove('open');
+}
+
+/** 强制改密：弹出关不掉的改密框，并等它改完再继续（boot 会 await 它）。 */
+function forcePasswordChange() {
+  openPwdDialog(true);
+  return new Promise(resolve => { pwdForcedResolve = resolve; });
+}
 
 async function savePassword() {
   const oldPwd = oldPwdInput.value;
@@ -1959,14 +1991,33 @@ async function savePassword() {
   if (!oldPwd) { showPwdNotice('请输入原密码'); return; }
   if (newPwd.length < 6) { showPwdNotice('新密码至少 6 位'); return; }
 
+  const wasForced = pwdForced;
   pwdSaveBtn.disabled = true;
   try {
-    await postJSON('/api/auth/change-password', {
+    const data = await postJSON('/api/auth/change-password', {
       old_password: oldPwd,
       new_password: newPwd
     });
+    // ⚠️ 改密会让**此前签发的 token 立即失效**，必须换用响应里新签发的这一个。
+    // 漏了这步，改密成功后的下一个请求就是 401 —— 用户会以为"改密把账号弄坏了"。
+    if (data && data.token) {
+      try { localStorage.setItem(TOKEN_KEY, data.token); } catch (err) { /* 隐私模式 */ }
+    }
+    pwdForced = false;
     closePwdDialog();
     toast('密码已修改');
+
+    if (wasForced) {
+      // 改完用新身份校正一次（must_change_password 已变 false），再放 boot 继续
+      try {
+        const fresh = await apiFetch('/api/auth/me');
+        cacheUser(fresh);
+        applyUser(fresh);
+      } catch (err) { /* 401 时 apiFetch 已清 token 并跳登录页 */ }
+      const resume = pwdForcedResolve;
+      pwdForcedResolve = null;
+      if (resume) resume();
+    }
   } catch (err) {
     showPwdNotice('修改失败：' + err.message);
   } finally {
@@ -1997,7 +2048,10 @@ function bindUI() {
   cancelBtn.addEventListener('click', closeSettings);
   closeBtn.addEventListener('click', closeSettings);
   saveBtn.addEventListener('click', saveSettings);
-  changePwdBtn.addEventListener('click', openPwdDialog);
+  // 注意要包一层：直接把 openPwdDialog 交给 addEventListener 的话，
+  // 点击事件对象会被当成 forced 传进去（对象恒为 truthy），
+  // 于是**主动改密也会变成关不掉**。
+  changePwdBtn.addEventListener('click', () => openPwdDialog(false));
   logoutBtn.addEventListener('click', logout);
   pwdCancelBtn.addEventListener('click', closePwdDialog);
   pwdCloseBtn.addEventListener('click', closePwdDialog);
@@ -2061,6 +2115,14 @@ async function boot() {
   }
   cacheUser(user);
   applyUser(user);
+
+  if (user.must_change_password) {
+    // 服务端在改密之前，除 /api/auth/me 与改密接口外一律 403 —— 所以这里
+    // **不去加载任何业务数据**（调了也只会拿到一串 403），直接把人按在改密框上，
+    // 等他改完再继续。这一步是"别让用户卡死"的前端一半。
+    await forcePasswordChange();
+    user = readCachedUser() || user;
+  }
 
   await loadSessions();
   if (user.role === 'admin') loadSettings();
