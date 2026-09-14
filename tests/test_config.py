@@ -113,28 +113,6 @@ def test_require_api_key_returns_key_when_set():
     assert _make_settings("k-1").require_api_key() == "k-1"
 
 
-def test_access_protected_flag_follows_password():
-    settings = _make_settings("k")
-
-    settings.app_password = "pw-123"
-    assert settings.access_protected is True
-
-    settings.app_password = ""
-    assert settings.access_protected is False
-
-
-def test_load_settings_reads_app_password(monkeypatch):
-    monkeypatch.setenv("APP_PASSWORD", "pw-456")
-
-    assert load_settings().app_password == "pw-456"
-
-
-def test_load_settings_defaults_app_password_to_empty(monkeypatch):
-    monkeypatch.delenv("APP_PASSWORD", raising=False)
-
-    assert load_settings().app_password == ""
-
-
 def test_rerank_url_joins_base_url_without_double_slash():
     """rerank 不是 OpenAI 兼容协议，路径要自己拼，注意别拼出 //rerank。"""
     assert _make_settings("k").rerank_url == "https://open.bigmodel.cn/api/paas/v4/rerank"

@@ -40,7 +40,7 @@ def discover_files(data_dir: Path) -> list[Path]:
     )
 
 
-def _load_manifest(manifest_path: Path) -> dict:
+def load_manifest(manifest_path: Path) -> dict:
     if manifest_path.exists():
         try:
             return json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -49,7 +49,7 @@ def _load_manifest(manifest_path: Path) -> dict:
     return {}
 
 
-def _save_manifest(manifest_path: Path, manifest: dict) -> None:
+def save_manifest(manifest_path: Path, manifest: dict) -> None:
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     manifest_path.write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
@@ -93,7 +93,7 @@ def ingest(
     collection = collection if collection is not None else get_collection()
     embed_fn = embed_fn or embed_texts
 
-    manifest = {} if force else _load_manifest(manifest_path)
+    manifest = {} if force else load_manifest(manifest_path)
     report = IngestReport()
 
     current: dict[str, Path] = {
@@ -145,5 +145,5 @@ def ingest(
             del manifest[rel_path]
             report.removed.append(rel_path)
 
-    _save_manifest(manifest_path, manifest)
+    save_manifest(manifest_path, manifest)
     return report

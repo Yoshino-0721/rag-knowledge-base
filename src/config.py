@@ -63,7 +63,6 @@ class Settings:
     chunk_size: int
     chunk_overlap: int
     top_k: int
-    app_password: str = ""
     # 多轮对话
     history_turns: int = 6
     rewrite_enabled: bool = True
@@ -71,11 +70,6 @@ class Settings:
     rerank_enabled: bool = True
     rerank_model: str = "rerank"
     rerank_candidates: int = 20
-
-    @property
-    def access_protected(self) -> bool:
-        """是否启用了访问口令。公网部署时建议开启，避免陌生人消耗你的 API Key。"""
-        return bool(self.app_password)
 
     @property
     def rerank_url(self) -> str:
@@ -127,7 +121,6 @@ def load_settings() -> Settings:
         chunk_size=int(_get("CHUNK_SIZE", "800")),
         chunk_overlap=int(_get("CHUNK_OVERLAP", "120")),
         top_k=int(_get("TOP_K", "5")),
-        app_password=_get("APP_PASSWORD"),
         history_turns=int(_get("HISTORY_TURNS", "6")),
         rewrite_enabled=_get_bool("QUERY_REWRITE", "true"),
         rerank_enabled=_get_bool("RERANK_ENABLED", "true"),

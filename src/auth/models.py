@@ -71,3 +71,22 @@ class Message(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
     session: Mapped["ChatSession"] = relationship(back_populates="messages")
+
+
+class Document(Base):
+    """一个用户上传的文档的元数据（向量库之外的可查询索引）。
+
+    ``rel_path`` 是相对该用户数据目录的路径，与 Chroma metadata 的
+    ``source`` 字段一致 —— 删除文档时用它清理向量与清单。
+    """
+
+    __tablename__ = "documents"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    filename: Mapped[str] = mapped_column(String(255))
+    rel_path: Mapped[str] = mapped_column(String(500))
+    file_hash: Mapped[str] = mapped_column(String(64), default="", server_default="")
+    chunks: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    size: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)

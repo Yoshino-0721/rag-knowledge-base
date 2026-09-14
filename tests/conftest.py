@@ -1,4 +1,4 @@
-"""共享测试夹具。"""
+﻿"""共享测试夹具。"""
 
 from __future__ import annotations
 
@@ -13,7 +13,6 @@ _TRACKED_FIELDS = (
     "embed_model",
     "embed_dim",
     "top_k",
-    "app_password",
     "history_turns",
     "rewrite_enabled",
     "rerank_enabled",
@@ -23,7 +22,6 @@ _TRACKED_FIELDS = (
 
 # 每个用例开始前强制回到这组基线值，避免受开发者本机 .env 影响。
 _BASELINE = {
-    "app_password": "",
     "history_turns": 6,
     "rewrite_enabled": True,
     "rerank_enabled": True,
