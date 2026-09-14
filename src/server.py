@@ -10,6 +10,8 @@
 
 from __future__ import annotations
 
+import os
+
 import json
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -35,6 +37,7 @@ from src.documents import delete_document, document_payload, sync_documents
 from src.ingest import ingest
 from src.llm import reset_client
 from src.loaders import SUPPORTED_SUFFIXES
+from src.paths import safe_target_name
 from src.pipeline import answer_question
 from src.serializers import message_payload, session_payload
 from src.store import get_collection
@@ -207,15 +210,33 @@ def upload_endpoint(
 
     for upload in files:
         # 只取文件名部分，防止 ../ 之类的路径穿越
-        name = Path(upload.filename or "").name
-        if not name or Path(name).suffix.lower() not in SUPPORTED_SUFFIXES:
-            skipped.append(name or "(未命名文件)")
+        # 文件名归一化复用 src/paths.py 的唯一实现：这里原先手写了一份
+        # ``Path(...).name``，与 safe_target_name 的规则迟早分叉 ——
+        # 而这类分叉的后果是"一边拦得住、一边拦不住"。
+        raw_name = Path(upload.filename or "")
+        name = safe_target_name(raw_name)
+        if Path(name).suffix.lower() not in SUPPORTED_SUFFIXES:
+            skipped.append(raw_name.name or "(未命名文件)")
             continue
         content = upload_guard.read_within_limit(upload, budget)
         budget -= len(content)
         target = paths.data_dir / name
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(content)
+        # 原子落盘：先写同目录临时文件，再 os.replace 顶替。直接 write_bytes 覆盖有
+        # 两个问题 —— 中途失败留半个文件把好文件顶掉；并发重名上传互相写花。
+        # os.replace 在同一文件系统内是原子的，而且**完全不涉及删除**
+        # （本机删除会被钩子重定向，批量时还可能抛 SystemExit，见 AGENTS.md §2.9）。
+        tmp = target.with_name(target.name + ".incoming")
+        try:
+            tmp.write_bytes(content)
+            os.replace(tmp, target)
+        finally:
+            # 清理是附带行为：失败不得影响主流程
+            if tmp.exists():
+                try:
+                    tmp.unlink()
+                except BaseException:  # noqa: BLE001
+                    pass
         saved.append(name)
 
     if not saved:

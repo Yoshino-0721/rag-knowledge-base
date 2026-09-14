@@ -153,3 +153,35 @@ class TestUploadEndpoint:
 
         assert response.status_code == 200, response.text
         assert response.json()["saved"] == ["ok.md"]
+
+
+def test_upload_is_atomic_and_normalizes_name(client, alice_headers):
+    """T2：上传的落盘是原子的，且文件名走 safe_target_name（不接受穿越）。"""
+    from src.config import PROJECT_ROOT, settings
+
+    # ① 穿越型文件名：落点必须仍在用户的 data 目录内，且项目根下不出现该文件
+    resp = client.post(
+        "/upload",
+        files={"files": ("../../evil.md", b"payload", "text/markdown")},
+        headers=alice_headers,
+    )
+    assert resp.status_code == 200, resp.text
+    assert not (PROJECT_ROOT / "evil.md").exists()
+    assert not (settings.data_dir / "evil.md").exists()
+
+    # ② 同目录里不留 .incoming 临时文件
+    leftovers = [p.name for p in settings.data_dir.rglob("*.incoming")]
+    assert leftovers == [], leftovers
+
+    # ③ 重名再传：内容被顶替（replace 语义），而不是两份并存
+    for payload in (b"v1", b"v2"):
+        r = client.post(
+            "/upload",
+            files={"files": ("doc.md", payload, "text/markdown")},
+            headers=alice_headers,
+        )
+        assert r.status_code == 200, r.text
+
+    marks = list(settings.data_dir.rglob("doc.md"))
+    assert len(marks) == 1, [str(p) for p in marks]
+    assert marks[0].read_bytes() == b"v2"
