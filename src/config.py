@@ -63,6 +63,8 @@ class Settings:
     chunk_size: int
     chunk_overlap: int
     top_k: int
+    # dev（默认）/ production。非 dev 时强制要求外部注入 JWT_SECRET，见 auth.security
+    app_env: str = "dev"
     # 多轮对话
     history_turns: int = 6
     rewrite_enabled: bool = True
@@ -121,6 +123,7 @@ def load_settings() -> Settings:
         chunk_size=int(_get("CHUNK_SIZE", "800")),
         chunk_overlap=int(_get("CHUNK_OVERLAP", "120")),
         top_k=int(_get("TOP_K", "5")),
+        app_env=_get("APP_ENV", "dev"),
         history_turns=int(_get("HISTORY_TURNS", "6")),
         rewrite_enabled=_get_bool("QUERY_REWRITE", "true"),
         rerank_enabled=_get_bool("RERANK_ENABLED", "true"),

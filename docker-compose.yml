@@ -7,6 +7,10 @@ services:
       - "8000:8000"          # 公网部署可改为 "80:8000"
     env_file:
       - .env                 # 启动前请先 cp .env.example .env
+    environment:
+      # 容器部署 = 生产：强制要求 .env 里注入 JWT_SECRET，缺了直接启动失败。
+      # environment 的优先级高于 env_file，所以 .env 里写 APP_ENV=dev 也压不住它。
+      APP_ENV: production
     volumes:
       - ./data:/app/data         # 你的文档
       - ./storage:/app/storage   # 向量库与索引清单，必须持久化

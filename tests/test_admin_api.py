@@ -15,6 +15,7 @@ from src import server
 from src.config import PROJECT_ROOT, settings
 from src.generate import Answer
 from src.ingest import IngestReport
+from tests.conftest import TEST_ADMIN_PASSWORD
 
 
 class FakeCollection:
@@ -351,12 +352,21 @@ def test_lifespan_creates_db_and_bootstraps_admin(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "data_dir", tmp_path / "data")
     with TestClient(app) as client:
         assert (tmp_path / "storage" / "app.db").is_file()
-        r = client.post("/api/auth/login", json={"account": "admin", "password": "admin123"})
+        r = client.post(
+            "/api/auth/login",
+            json={"account": "admin", "password": TEST_ADMIN_PASSWORD},
+        )
         assert r.status_code == 200, r.text
         assert r.json()["user"]["role"] == "admin"
+        # 口令由 ADMIN_PASSWORD 显式提供 → 不应被"必须先改密"的闸门拦住
+        assert r.json()["user"]["must_change_password"] is False
     # 幂等：再进一次不该多出管理员
     with TestClient(app) as client:
-        h = {"Authorization": "Bearer " + client.post("/api/auth/login", json={"account": "admin", "password": "admin123"}).json()["token"]}
+        token = client.post(
+            "/api/auth/login",
+            json={"account": "admin", "password": TEST_ADMIN_PASSWORD},
+        ).json()["token"]
+        h = {"Authorization": f"Bearer {token}"}
         assert len(client.get("/api/admin/users", headers=h).json()["users"]) == 1
 
     # 没有污染真实 storage/
