@@ -3,7 +3,7 @@
 ![Python](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?logo=fastapi&logoColor=white)
 ![ChromaDB](https://img.shields.io/badge/ChromaDB-local-FF6B6B)
-![Tests](https://img.shields.io/badge/tests-426%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-427%20passed-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
 ## ⚠️ 部署前必读（安全）
@@ -192,7 +192,7 @@ flowchart LR
 | 精排 | 智谱 `rerank`（**非** OpenAI 兼容协议，直接发 HTTP 请求，复用同一个 Key） |
 | 文档解析 | PyMuPDF / python-docx / python-pptx / 原生读取 |
 | 前端 | 原生 HTML + JS，无需构建，**不引任何 CDN** |
-| 测试 | pytest（426 项） |
+| 测试 | pytest（427 项） |
 
 > 说明：**未引入 LangChain**。本项目链路只有「检索 → 拼 Prompt → 调用模型」，
 > 原生实现更短更透明、出错好定位；等将来需要多路检索或 Agent 编排时再评估。
@@ -370,7 +370,7 @@ docker compose up -d --build
 pytest
 ```
 
-426 项测试全部使用桩对象，不发起真实 API 调用，也不会改动真实的 `.env`。
+427 项测试全部使用桩对象，不发起真实 API 调用，也不会改动真实的 `.env`。
 其中多用户部分专门覆盖了**跨用户越权**（A 读不到 B 的会话 / 文档，一律 404）、
 **普通用户 403**、**禁用用户拒绝登录**、**JWT 过期与伪造拒绝**、
 **消息落库后重启不丢**，以及**删除钩子拦截删除时主流程不受影响**。
