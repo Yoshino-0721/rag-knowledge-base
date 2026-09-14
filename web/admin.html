@@ -28,6 +28,11 @@
     --shadow-md: 0 10px 30px rgba(0, 0, 0, 0.32);
     --shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.5);
     --mono: "Cascadia Mono", Consolas, "Courier New", monospace;
+    /* 模块 11 pass 1 补齐：取值＝原先散落在规则里的字面量，本轮不改观感。
+       间距 / 字号 / 圆角的**取值收敛**留到下一轮（见 docs/design-tokens.md）。 */
+    --accent-2: #6f7dff;
+    --on-accent: #FFFFFF;
+    --scrim: rgba(6, 10, 18, 0.62);
   }
 
   * { box-sizing: border-box; }
@@ -36,7 +41,7 @@
     margin: 0;
     min-height: 100vh;
     background:
-      radial-gradient(1100px 520px at 10% -10%, rgba(76, 141, 255, 0.14), transparent 60%),
+      radial-gradient(1100px 520px at 10% -10%, var(--accent-soft), transparent 60%),
       var(--bg);
     color: var(--text);
     font: 15px/1.6 "Segoe UI", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
@@ -152,8 +157,8 @@
 
   button.primary {
     padding: 8px 15px; border: 0; border-radius: var(--radius-sm);
-    background: linear-gradient(135deg, var(--accent), #6f7dff);
-    color: #fff; font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: var(--on-accent); font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer;
   }
 
   button.primary:hover:not(:disabled) { filter: brightness(1.1); }
@@ -187,7 +192,7 @@
   .overlay {
     position: fixed; inset: 0; z-index: 50;
     display: flex; justify-content: flex-end;
-    background: rgba(6, 10, 18, 0.62); backdrop-filter: blur(2px);
+    background: var(--scrim); backdrop-filter: blur(2px);
   }
 
   .drawer {
