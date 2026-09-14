@@ -52,6 +52,15 @@ def test_index_serves_chat_page():
     assert "text/html" in response.headers["content-type"]
 
 
+@pytest.mark.parametrize("path", ["/login", "/admin"])
+def test_page_routes_serve_html(path):
+    """登录页与后台页也要能直接打开（权限闸门在接口层，不在页面层）。"""
+    response = client.get(path)
+
+    assert response.status_code == 200, response.text
+    assert "text/html" in response.headers["content-type"]
+
+
 # ---------------------------------------------------------------- 鉴权门槛
 
 

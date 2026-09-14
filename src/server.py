@@ -408,5 +408,15 @@ def login_page() -> FileResponse:
     return FileResponse(WEB_DIR / "login.html")
 
 
+@app.get("/admin")
+def admin_page() -> FileResponse:
+    """管理后台页面。
+
+    这里不做服务端跳转：页面本身会去问 /api/auth/me，非管理员看到明确的
+    无权限提示。真正的闸门是 /api/admin/* 上的 require_admin（一律 403）。
+    """
+    return FileResponse(WEB_DIR / "admin.html")
+
+
 if WEB_DIR.exists():
     app.mount("/web", StaticFiles(directory=str(WEB_DIR)), name="web")
