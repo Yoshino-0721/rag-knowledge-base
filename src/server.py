@@ -10,6 +10,8 @@
 
 from __future__ import annotations
 
+import contextvars
+
 import os
 
 import json
@@ -33,6 +35,9 @@ from src.auth.deps import get_current_user, get_db, require_admin
 from src.auth.models import ChatSession, Document, Message, User
 from src.auth.security import verify_security_config
 from src.config import PROJECT_ROOT, apply_settings, settings
+from src import request_id
+
+_current_rid = contextvars.ContextVar("request_id_mw", default="-")
 from src.documents import delete_document, document_payload, sync_documents
 from src.ingest import ingest
 from src.llm import reset_client
@@ -110,6 +115,28 @@ def _own_session(db: OrmSession, user: User, session_id: int) -> ChatSession:
 
 
 # ---------------------------------------------------------------- 基础接口
+
+
+request_id.install()
+
+
+@app.middleware("http")
+async def _attach_request_id(request: Request, call_next):
+    """给每个请求分配 id：优先采信合法的入站头，否则新生成。
+
+    入站头要严格校验（见 ``src/request_id.py`` 的 ``_ALLOWED``）：那是不可信输入，
+    直接回显会带来日志注入。id 同时写进 ``scope["state"]``（异常处理器从那里取）
+    与 ContextVar（业务日志用），最后回显到响应头。
+    """
+    rid = request_id.sanitize(request.headers.get(request_id.REQUEST_ID_HEADER)) or request_id.new_id()
+    request_id.bind(request.scope, rid)
+    token = _current_rid.set(rid)
+    try:
+        response = await call_next(request)
+    finally:
+        _current_rid.reset(token)
+    response.headers[request_id.REQUEST_ID_HEADER] = rid
+    return response
 
 
 @app.get("/health")
