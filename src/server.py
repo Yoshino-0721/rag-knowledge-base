@@ -110,7 +110,13 @@ def _own_session(db: OrmSession, user: User, session_id: int) -> ChatSession:
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok", "data_dir": str(settings.data_dir)}
+    """公开的健康检查：**只回答"活着吗"**，不吐任何服务器内部信息。
+
+    原先这里连 `data_dir`（服务器绝对路径）一起返回。公开接口不该给匿名调用者
+    提供路径情报 —— 它配合任意文件读取类缺陷就是一张攻击地图。
+    站点自身的目录信息仍在需要管理员的 `/api/admin/system/health` 里。
+    """
+    return {"status": "ok"}
 
 
 # ---------------------------------------------------------------- 设置（仅管理员）
