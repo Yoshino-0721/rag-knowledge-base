@@ -3,7 +3,7 @@
 ![Python](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?logo=fastapi&logoColor=white)
 ![ChromaDB](https://img.shields.io/badge/ChromaDB-local-FF6B6B)
-![Tests](https://img.shields.io/badge/tests-414%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-425%20passed-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
 ## ⚠️ 部署前必读（安全）
@@ -141,6 +141,15 @@ Authorization: Bearer <token>
 ```
 
 token 是 HS256 签名的 JWT（payload 含 `sub` / `username` / `role` / `exp`），
+
+> **改密（或管理员重置口令）会让此前签发的 token 立刻全部失效** —— payload 里带
+> `token_version`，改密时库里的版本号自增，旧 token 下一次请求就是 401。
+> 这是"改密"的应有语义：口令之所以要改，前提就是旧凭据可能已经泄露。
+> 为了让客户端不必再登录一次，`/api/auth/change-password` 会在响应里
+> **顺带返回一个新签发的 token**，前端换用它即可继续。
+>
+> 升级说明：`token_version` 是后加的字段，**升级前签发的 token 一律失效**
+> （刻意不做"缺字段就放行"的兼容）—— 所以升级后所有人需要重新登录一次。
 由 `/api/auth/login` 或 `/api/auth/register` 下发，前端存在 `localStorage.auth_token`。
 失效或被禁用时返回 401 / 403，前端会自动清掉 token 并跳回登录页。
 
@@ -183,7 +192,7 @@ flowchart LR
 | 精排 | 智谱 `rerank`（**非** OpenAI 兼容协议，直接发 HTTP 请求，复用同一个 Key） |
 | 文档解析 | PyMuPDF / python-docx / python-pptx / 原生读取 |
 | 前端 | 原生 HTML + JS，无需构建，**不引任何 CDN** |
-| 测试 | pytest（414 项） |
+| 测试 | pytest（425 项） |
 
 > 说明：**未引入 LangChain**。本项目链路只有「检索 → 拼 Prompt → 调用模型」，
 > 原生实现更短更透明、出错好定位；等将来需要多路检索或 Agent 编排时再评估。
@@ -322,7 +331,7 @@ docker compose up -d --build
 | POST | `/api/auth/register` | 注册，body `{"username","email","password"}`（口令 ≥ 6 位）；注册即登录，返回 `{"token","user"}` |
 | POST | `/api/auth/login` | 登录，body `{"account","password"}`；`account` 可填用户名或邮箱 |
 | GET | `/api/auth/me` | 当前登录用户 |
-| POST | `/api/auth/change-password` | 改密，body `{"old_password","new_password"}` |
+| POST | `/api/auth/change-password` | 改密，body `{"old_password","new_password"}`；**旧 token 当次失效**，响应里返回一个新 token（`{"ok":true,"token":"..."}`） |
 | POST | `/upload` | 上传文档（multipart，字段名 `files`），自动增量建库（限本人）；总量超过 `MAX_UPLOAD_SIZE` 返回 **413** |
 | POST | `/ingest` | 重建索引，body `{"force": false}`；`force=true` 全量重建 |
 | GET | `/api/documents` | 当前用户的文档列表 |
@@ -361,7 +370,7 @@ docker compose up -d --build
 pytest
 ```
 
-414 项测试全部使用桩对象，不发起真实 API 调用，也不会改动真实的 `.env`。
+425 项测试全部使用桩对象，不发起真实 API 调用，也不会改动真实的 `.env`。
 其中多用户部分专门覆盖了**跨用户越权**（A 读不到 B 的会话 / 文档，一律 404）、
 **普通用户 403**、**禁用用户拒绝登录**、**JWT 过期与伪造拒绝**、
 **消息落库后重启不丢**，以及**删除钩子拦截删除时主流程不受影响**。
