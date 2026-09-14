@@ -1,4 +1,4 @@
-﻿"""共享测试夹具。"""
+"""共享测试夹具。"""
 
 from __future__ import annotations
 
@@ -91,3 +91,34 @@ def admin_headers(client) -> dict:
     )
     assert response.status_code == 200, response.text
     return auth_headers(response.json()["token"])
+
+
+# ---------------------------------------------------------------- 常用账号夹具
+#
+# 多用户接口的用例基本都需要「两个普通用户 + 一个管理员」，统一提到这里
+# 避免每个测试文件各写一份。普通用户现注册现登录，管理员是引导创建的那个。
+
+
+@pytest.fixture()
+def alice(client) -> dict:
+    return register_and_login(client, "alice")
+
+
+@pytest.fixture()
+def alice_headers(alice) -> dict:
+    return auth_headers(alice["token"])
+
+
+@pytest.fixture()
+def bob(client) -> dict:
+    return register_and_login(client, "bob")
+
+
+@pytest.fixture()
+def bob_headers(bob) -> dict:
+    return auth_headers(bob["token"])
+
+
+@pytest.fixture()
+def admin_h(client) -> dict:
+    return admin_headers(client)

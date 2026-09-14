@@ -35,23 +35,7 @@ def _headers(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}
 
 
-@pytest.fixture()
-def alice():
-    return _register("alice")
-
-
-@pytest.fixture()
-def alice_headers(alice) -> dict:
-    return _headers(alice["token"])
-
-
-@pytest.fixture()
-def admin_h() -> dict:
-    response = client.post(
-        "/api/auth/login", json={"account": "admin", "password": "admin123"}
-    )
-    assert response.status_code == 200
-    return _headers(response.json()["token"])
+# alice / alice_headers / admin_h 夹具已提到 tests/conftest.py 共享。
 
 
 def test_health_returns_ok():
