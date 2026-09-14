@@ -84,17 +84,24 @@ PDF 精确到页码、PPT 到页序，还会给出精排分与相似度。**能�
 
 ### 默认管理员
 
-全新部署（`users` 表为空）时，服务启动会自动引导一个管理员：
+全新部署（`users` 表为空）时，服务启动会自动引导一个管理员账号 `admin`。
+**这里没有"默认口令"这种东西** —— 一个全站可见的固定口令，等于把"部署到公网后
+忘记改"变成必然事件。口令只有两条来源：
 
-```
-用户名  admin
-口令    admin123
-邮箱    admin@example.com
-```
+| 情况 | 行为 |
+|---|---|
+| `.env` 里**留空** `ADMIN_PASSWORD`（默认） | 系统**生成随机强口令**，在启动日志里用醒目横幅打印**一次**；该账号 `must_change_password=True`，改密前除 `/api/auth/me` 与改密接口外**一律 403**，且新口令必须够强（防止一次改成 `123456` 绕过整套策略） |
+| `.env` 里**填了** `ADMIN_PASSWORD` | 直接用它，不强制改密。但**弱口令会让服务拒绝启动**：要求 ≥12 位、至少 3 类字符（大小写/数字/符号），且不在常见弱口令表里（`admin123` 会被明确拒绝并打印生成命令） |
 
-⚠️ **使用默认口令时启动日志会打出警告，请登录后立刻在界面上改密**
-（右上角「修改密码」）。也可以用下面的环境变量指定初始账号，避免默认口令上线。
 引导是幂等的：表里已有用户就不会重复创建。
+
+> 拿到随机口令后，除了在网页上改，也可以直接改：
+> ```bash
+> curl -X POST http://127.0.0.1:8000/api/auth/change-password \
+>   -H "Content-Type: application/json" \
+>   -H "Authorization: Bearer <登录接口返回的 token>" \
+>   -d '{"old_password":"<横幅里的口令>","new_password":"<新的强口令>"}'
+> ```
 
 ### 认证方式
 
@@ -199,8 +206,9 @@ pip install -r requirements.txt
 uvicorn src.server:app --reload
 ```
 
-打开 <http://127.0.0.1:8000> ，会跳到登录页。用默认管理员 `admin` / `admin123` 登录，
-**登录后请立刻改密**；其它成员在登录页切到「注册」自己开账号即可。
+打开 <http://127.0.0.1:8000> ，会跳到登录页。首次启动的管理员口令，要么是你设的
+`ADMIN_PASSWORD`，要么是**启动日志横幅里那串随机口令**（只打印一次，请及时保存），
+后者登录后必须先改密。其它成员在登录页切到「注册」自己开账号即可。
 
 **3. 配置 API Key（仅管理员）**
 
@@ -227,9 +235,13 @@ docker compose up -d --build
 访问 <http://服务器IP:8000>。数据与向量库通过 volume 挂载在宿主机的
 `./data` 与 `./storage`，容器重建不丢（**用户、会话、口令哈希都在 `./storage/app.db` 里**）。
 
-> ⚠️ **部署到公网前请务必做两件事**：① 用 `ADMIN_PASSWORD` 指定初始管理员口令（或登录后
-> 立刻改掉默认口令）；② 设置一个随机 `JWT_SECRET`。任何人拿到管理员账号都能消耗你的
-> API Key 额度；而 JWT 密钥若每次重启都变，所有人都会被强制重新登录。
+> ⚠️ **容器 / 公网部署有两条强制项**（`docker-compose.yml` 已把 `APP_ENV` 设为
+> `production`）：
+> ① **必须**注入 `JWT_SECRET`，否则服务**直接拒绝启动**（随机密钥只落在容器内的
+> `storage/`，重建即丢，所有人被静默强制重登；多实例更是各签各的）；
+> ② 用 `ADMIN_PASSWORD` 指定初始管理员口令 —— 留空会走「随机口令 + 强制首次改密」，
+> 填弱口令（如 `admin123`）同样会**拒绝启动**。
+> 任何人拿到管理员账号都能消耗你的 API Key 额度。
 
 完整步骤（含云服务器选购、安全组、Nginx 反代与 HTTPS）见
 **[docs/DEPLOY.md](docs/DEPLOY.md)**。
@@ -253,11 +265,12 @@ docker compose up -d --build
 | `RERANK_ENABLED` | `true` | 精排开关；关掉也能用，只是召回精度降一档 |
 | `RERANK_MODEL` | `rerank` | 精排模型编码 |
 | `RERANK_CANDIDATES` | `20` | 送入精排的候选条数（接口上限 128） |
-| `JWT_SECRET` | 自动生成 | JWT 签名密钥。不设则随机生成并持久化到 `storage/secret.key`（重启不失效）；**多实例部署必须显式设置且保持一致** |
+| `JWT_SECRET` | dev 下自动生成 | JWT 签名密钥。**`APP_ENV != dev` 时必填，缺了直接拒绝启动**；dev 下不设则随机生成并持久化到 `storage/secret.key`（重启不失效）。多实例部署必须显式设置且保持一致 |
+| `APP_ENV` | `dev` | `dev` / `production`。非 `dev` 即视为生产，强制要求外部注入 `JWT_SECRET`（`docker-compose.yml` 已设为 `production`） |
 | `JWT_EXPIRE_HOURS` | `168` | 登录态有效期（小时），默认 7 天 |
 | `ADMIN_USERNAME` | `admin` | 首次启动引导的管理员用户名 |
 | `ADMIN_EMAIL` | `admin@example.com` | 首次启动引导的管理员邮箱 |
-| `ADMIN_PASSWORD` | `admin123` | 首次启动引导的管理员口令；用默认值时启动日志会警告 |
+| `ADMIN_PASSWORD` | 空（随机生成） | 首次启动引导的管理员口令。**没有默认口令**：留空则生成随机强口令、启动横幅打印一次并强制首次改密；填入弱口令（<12 位 / <3 类字符 / 命中弱口令表）会**拒绝启动** |
 | `STORAGE_DIR` | `<仓库>/storage` | 落盘根目录（SQLite、索引清单、向量库） |
 | `DATA_DIR` | `<仓库>/data` | 文档根目录，实际按 `users/<id>/` 分用户存放 |
 

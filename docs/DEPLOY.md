@@ -12,8 +12,9 @@ cp .env.example .env
 
 # 2. 编辑 .env，至少填这几项：
 #    ZHIPUAI_API_KEY=你的key
-#    ADMIN_PASSWORD=管理员初始口令（不填则用默认 admin123，启动日志会警告）
-#    JWT_SECRET=一串随机长字符（不填会自动生成并落盘到 storage/secret.key）
+#    JWT_SECRET=一串随机长字符（**容器部署必填**：APP_ENV=production 缺它直接拒绝启动）
+#    ADMIN_PASSWORD=管理员初始口令（建议显式设置；留空则生成随机口令并在启动横幅
+#                    打印一次、强制首次登录改密；填弱口令会被拒绝启动）
 
 # 3. 构建并启动
 docker compose up -d --build
@@ -26,6 +27,9 @@ docker compose ps
 打开 <http://127.0.0.1:8000>，会跳到**应用自己的登录页**（不是浏览器的 Basic 认证弹框）。
 用 `.env` 里指定的管理员账号登录；其它成员在登录页切到「注册」自己开账号即可。
 **首次登录后请立刻在右上角「修改密码」改掉初始口令。**
+如果 `ADMIN_PASSWORD` 留空，初始口令是**启动日志横幅里那串随机口令**（只出现一次）——
+用 `docker compose logs | grep 口令` 找回来；该账号在改密前除 `/api/auth/me` 与改密接口
+外一律 403。
 
 停止 / 重建：
 
@@ -83,7 +87,7 @@ cd <仓库名>
 
 ```bash
 cp .env.example .env
-vim .env            # 填 ZHIPUAI_API_KEY、ADMIN_PASSWORD、JWT_SECRET
+vim .env            # 填 ZHIPUAI_API_KEY、JWT_SECRET（必填）、ADMIN_PASSWORD（强口令）
 docker compose up -d --build
 ```
 
@@ -178,8 +182,9 @@ sudo certbot --nginx -d your-domain.com
 ## 五、上线前安全清单
 
 - [ ] `.env` 已加入 `.gitignore`，**没有**被提交到 GitHub
-- [ ] `ADMIN_PASSWORD` 已指定，且登录后**已经改掉**初始口令（或确认默认口令未暴露在公网）
-- [ ] `JWT_SECRET` 已设为随机长字符串（多实例部署时保持一致）
+- [ ] `JWT_SECRET` 已设为随机长字符串（**容器部署必填，否则服务拒绝启动**；多实例保持一致）
+- [ ] `ADMIN_PASSWORD` 已设为强口令（弱口令会被拒绝启动），或已用启动横幅里的随机口令登录并**完成首次改密**
+- [ ] 启动日志里没有「缺 JWT_SECRET」「ADMIN_PASSWORD 不满足强度要求」这类告警
 - [ ] 仓库历史里没有出现过 API Key（`git log --all -- .env` 为空）
 - [ ] `storage/app.db` 与 `storage/secret.key` 未被提交（`git log --all -- storage/` 为空）
 - [ ] 服务器防火墙只放行必要端口
