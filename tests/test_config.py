@@ -93,7 +93,7 @@ def test_placeholder_api_key_is_treated_as_missing(monkeypatch):
 
 
 def test_api_key_hint_masks_middle():
-    assert _make_settings("abcdefghijklmnop").api_key_hint == "abcd****mnop"
+    assert _make_settings("abcdefghijklmnop").api_key_hint == "****op"
 
 
 def test_api_key_hint_handles_short_key():
@@ -197,3 +197,16 @@ def test_apply_settings_updates_turn_and_rerank_fields(temp_env):
     text = temp_env.read_text(encoding="utf-8")
     assert "HISTORY_TURNS=0" in text
     assert "RERANK_CANDIDATES=8" in text
+
+
+def test_api_key_hint_never_exposes_the_prefix():
+    """收紧后只给**末 2 位**：前缀不再泄露。
+
+    前缀往往带项目/环境标识（`sk-live-`、`sk-test-`），是很好用的情报；
+    原实现把前 4 + 后 4 一起印在设置页上，那不叫脱敏。
+    """
+    hint = _make_settings("sk-live-abcdefghijklmnop").api_key_hint
+
+    assert hint == "****op"
+    assert "sk-l" not in hint
+    assert hint.count("*") >= 4

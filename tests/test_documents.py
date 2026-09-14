@@ -287,3 +287,107 @@ def test_admin_sees_all_users_documents_and_previews_content(
     )
     assert forbidden.status_code == 403, forbidden.text
     assert client.get("/api/admin/documents", headers=bob_headers).status_code == 403
+
+
+# ---------------------------------------------------------------- 预览：按需读取
+
+
+def test_preview_is_bounded_by_max_chars(client, alice, alice_headers, admin_h, monkeypatch, data_root):
+    """超长文档只返回上限那么多字符，并明确标注被截断（C2 复核清单 4.3）。"""
+    from src import admin_api
+
+    monkeypatch.setattr(
+        server, "ingest", _fake_ingest(IngestReport(added=["长文.md"], chunks_written=1))
+    )
+    long_text = "很长的正文内容。" * 2000  # 远超 PREVIEW_MAX_CHARS
+    _upload(client, alice_headers, "长文.md", long_text.encode("utf-8"))
+    doc_id = client.get("/api/documents", headers=alice_headers).json()["documents"][0]["id"]
+
+    body = client.get(f"/api/admin/documents/{doc_id}/preview", headers=admin_h).json()
+
+    assert body["truncated"] is True
+    assert len(body["preview"]) < len(long_text)
+    assert "已截断" in body["preview"]
+    # 上限附近（多取一个字符用于判断是否截断），而不是整份内容
+    assert len(body["preview"]) <= admin_api.PREVIEW_MAX_CHARS + 60
+
+
+def test_preview_does_not_parse_oversized_files(
+    client, alice, alice_headers, admin_h, monkeypatch, data_root
+):
+    """超过体积上限的文件**根本不进解析器** —— 这才是挡住内存尖峰的那道门。"""
+    from src import admin_api
+
+    monkeypatch.setattr(
+        server, "ingest", _fake_ingest(IngestReport(added=["大文件.md"], chunks_written=1))
+    )
+    _upload(client, alice_headers, "大文件.md", b"x" * 4096)
+    doc_id = client.get("/api/documents", headers=alice_headers).json()["documents"][0]["id"]
+
+    monkeypatch.setattr(admin_api, "PREVIEW_MAX_BYTES", 128)  # 让上面那个文件"过大"
+    parsed: list[int] = []
+    real_load = admin_api.load_document
+    monkeypatch.setattr(
+        admin_api,
+        "load_document",
+        lambda *a, **k: (parsed.append(1), real_load(*a, **k))[1],
+    )
+
+    body = client.get(f"/api/admin/documents/{doc_id}/preview", headers=admin_h).json()
+
+    assert body["truncated"] is True
+    assert "超过预览体积上限" in body["preview"]
+    assert parsed == [], "超大文件不该进解析器"
+
+
+# ---------------------------------------------------------------- 越界 rel_path 纵深防御
+
+
+def _tamper_rel_path(doc_id: int, hostile: str) -> None:
+    from src.auth.db import get_session_factory
+    from src.auth.models import Document
+
+    factory = get_session_factory()
+    with factory() as db:
+        row = db.get(Document, doc_id)
+        row.rel_path = hostile
+        db.commit()
+
+
+def test_preview_refuses_out_of_bounds_rel_path(
+    client, alice, alice_headers, admin_h, monkeypatch, data_root
+):
+    """rel_path 越界时预览必须拒绝。
+
+    正常流程产生不了这种值（rel_path 由 ingest 从磁盘相对路径生成），
+    所以这条验的是**纵深防御**：上游某天漏了校验，落点仍然被钉在目录内。
+    """
+    monkeypatch.setattr(
+        server, "ingest", _fake_ingest(IngestReport(added=["笔记.md"], chunks_written=1))
+    )
+    _upload(client, alice_headers, "笔记.md", b"# hello")
+    doc_id = client.get("/api/documents", headers=alice_headers).json()["documents"][0]["id"]
+    _tamper_rel_path(doc_id, "../../outside.md")
+
+    response = client.get(f"/api/admin/documents/{doc_id}/preview", headers=admin_h)
+
+    assert response.status_code == 404, response.text
+    assert "非法" in response.json()["detail"]
+
+
+def test_delete_refuses_out_of_bounds_rel_path_but_still_clears(
+    client, alice, alice_headers, monkeypatch, data_root
+):
+    """越界时**不删文件**，但表行照常清理 —— 清理失败不得阻断主流程。"""
+    monkeypatch.setattr(
+        server, "ingest", _fake_ingest(IngestReport(added=["笔记.md"], chunks_written=1))
+    )
+    _upload(client, alice_headers, "笔记.md", b"# hello")
+    doc_id = client.get("/api/documents", headers=alice_headers).json()["documents"][0]["id"]
+    _tamper_rel_path(doc_id, "../../outside.md")
+
+    response = client.delete(f"/api/documents/{doc_id}", headers=alice_headers)
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {"ok": True, "file_removed": False}
+    assert client.get("/api/documents", headers=alice_headers).json()["documents"] == []

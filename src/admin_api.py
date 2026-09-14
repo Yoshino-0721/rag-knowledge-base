@@ -24,6 +24,7 @@ from src.documents import delete_document, document_payload, sync_documents
 from src.ingest import ingest
 from src.llm import reset_client
 from src.loaders import load_document
+from src.paths import safe_join
 from src.serializers import message_payload, session_payload
 from src.store import get_collection
 from src.userspace import user_paths
@@ -32,6 +33,11 @@ router = APIRouter(prefix="/api/admin", tags=["admin"], dependencies=[Depends(re
 
 # 管理员预览文档时的最大字符数 —— 只读模式，避免一次把超大文档整个吐出去
 PREVIEW_MAX_CHARS = 4000
+
+# 预览的**体积**上限：超过就不解析（而不是"解析完再截断"）。
+# 字符数上限挡不住内存尖峰 —— 一份 300 MB 的 PDF 会在被截断到 4000 字符之前
+# 先把整份内容读进内存。
+PREVIEW_MAX_BYTES = 8 * 1024 * 1024
 
 
 # ---------------------------------------------------------------- 数据模型
@@ -259,18 +265,42 @@ def preview_document(doc_id: int, db: OrmSession = Depends(get_db)) -> dict:
     if doc is None:
         raise HTTPException(status_code=404, detail="文档不存在")
 
-    paths = user_paths(settings, doc.user_id)
-    file_path = paths.data_dir / doc.rel_path
-    blocks = load_document(file_path) if file_path.is_file() else []
-    text = "\n\n".join(block.text for block in blocks)
-    preview = text[:PREVIEW_MAX_CHARS]
-    if len(text) > PREVIEW_MAX_CHARS:
-        preview += f"\n\n…（已截断，全文 {len(text)} 字符）"
-
     owner = db.get(User, doc.user_id)
+    payload = document_payload(doc, username=owner.username if owner else "(已删除)")
+
+    # 纵深防御：rel_path 理论上由 ingest 从磁盘相对路径生成、不可能越界，
+    # 但落点校验只是一次 resolve，顺手加上。
+    file_path = safe_join(user_paths(settings, doc.user_id).data_dir, doc.rel_path)
+    if file_path is None:
+        raise HTTPException(status_code=404, detail="文档路径非法")
+    if not file_path.is_file():
+        return {**payload, "preview": "", "truncated": False, "locations": []}
+
+    size = file_path.stat().st_size
+    if size > PREVIEW_MAX_BYTES:
+        return {
+            **payload,
+            "preview": (
+                f"（文件 {size / 1024 / 1024:.1f} MiB，超过预览体积上限 "
+                f"{PREVIEW_MAX_BYTES // (1024 * 1024)} MiB，未解析以免占用大量内存；"
+                "需要时请在服务器上直接打开该文件。）"
+            ),
+            "truncated": True,
+            "locations": [],
+        }
+
+    # **按需读取**：多要一个字符 —— 拿得到就说明后面还有内容，据此判断是否截断
+    blocks = load_document(file_path, max_chars=PREVIEW_MAX_CHARS + 1)
+    text = "\n\n".join(block.text for block in blocks)
+    truncated = len(text) > PREVIEW_MAX_CHARS
+    preview = text[:PREVIEW_MAX_CHARS]
+    if truncated:
+        preview += f"\n\n…（已截断到预览上限 {PREVIEW_MAX_CHARS} 字符）"
+
     return {
-        **document_payload(doc, username=owner.username if owner else "(已删除)"),
+        **payload,
         "preview": preview,
+        "truncated": truncated,
         "locations": [block.location for block in blocks[:20]],
     }
 

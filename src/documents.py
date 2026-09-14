@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session as OrmSession
 
 from src.auth.models import Document
 from src.ingest import load_manifest, save_manifest
+from src.paths import safe_join
 from src.store import get_collection
 
 logger = logging.getLogger(__name__)
@@ -31,8 +32,10 @@ def sync_documents(db: OrmSession, user_id: int, data_dir: Path, manifest_path: 
     }
 
     for rel_path, info in manifest.items():
-        file_path = data_dir / rel_path
-        size = file_path.stat().st_size if file_path.is_file() else 0
+        # 纵深防御：清单里的 rel_path 理论上由 ingest 从磁盘相对路径生成、不可能越界，
+        # 但"理论上"不该是唯一防线 —— 落点校验在这里只是一次 resolve。
+        file_path = safe_join(data_dir, rel_path)
+        size = file_path.stat().st_size if file_path and file_path.is_file() else 0
         row = existing.pop(rel_path, None)
         if row is None:
             db.add(
@@ -110,7 +113,13 @@ def delete_document(
     collection_name: str,
 ) -> dict:
     """删除一个文档的全部痕迹：文件 → 向量 → 清单 → 表行。"""
-    file_removed = _best_effort_unlink(data_dir / doc.rel_path)
+    target = safe_join(data_dir, doc.rel_path)
+    if target is None:
+        # 越界一律拒绝删除；但**不影响**表行/向量/清单的清理（清理只是附带动作）
+        logger.warning("拒绝删除越界的 rel_path：%s", doc.rel_path)
+        file_removed = False
+    else:
+        file_removed = _best_effort_unlink(target)
 
     try:
         get_collection(collection_name).delete(where={"source": doc.rel_path})

@@ -3,7 +3,7 @@
 ![Python](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?logo=fastapi&logoColor=white)
 ![ChromaDB](https://img.shields.io/badge/ChromaDB-local-FF6B6B)
-![Tests](https://img.shields.io/badge/tests-390%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-414%20passed-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
 ## ⚠️ 部署前必读（安全）
@@ -93,6 +93,17 @@ PDF 精确到页码、PPT 到页序，还会给出精排分与相似度。**能�
 | `/api/admin/*`（用户 / 会话 / 文档 / 系统） | ❌ 403 | ✅ |
 | 重建索引 | ✅ 仅自己 | ✅ 自己 + 全站 |
 
+> ### 管理员能看到什么（请让所有成员在上传前知情）
+>
+> **管理员可查看所有用户的会话、消息、引用片段及上传文档的元数据。**
+>
+> 具体到这套实现：管理后台能读取**任意用户**的完整聊天记录，而聊天记录里的引用片段
+> 本身带着被引用文档的**正文**；管理员还能对任意文档做**只读原文预览**。
+> 换句话说，**不要把自己不希望管理员看到的内容放进这套系统**。
+>
+> 这不是实现缺陷，而是"全站管理员"这个角色的定义 —— 写在这里是为了让成员在
+> **上传之前**就知道，而不是事后才发现。
+
 两条刻意的设计：
 
 - **越权返回 404 而不是 403**。「这个资源不属于你」和「这个资源不存在」必须长得一样，
@@ -172,7 +183,7 @@ flowchart LR
 | 精排 | 智谱 `rerank`（**非** OpenAI 兼容协议，直接发 HTTP 请求，复用同一个 Key） |
 | 文档解析 | PyMuPDF / python-docx / python-pptx / 原生读取 |
 | 前端 | 原生 HTML + JS，无需构建，**不引任何 CDN** |
-| 测试 | pytest（390 项） |
+| 测试 | pytest（414 项） |
 
 > 说明：**未引入 LangChain**。本项目链路只有「检索 → 拼 Prompt → 调用模型」，
 > 原生实现更短更透明、出错好定位；等将来需要多路检索或 Agent 编排时再评估。
@@ -350,7 +361,7 @@ docker compose up -d --build
 pytest
 ```
 
-390 项测试全部使用桩对象，不发起真实 API 调用，也不会改动真实的 `.env`。
+414 项测试全部使用桩对象，不发起真实 API 调用，也不会改动真实的 `.env`。
 其中多用户部分专门覆盖了**跨用户越权**（A 读不到 B 的会话 / 文档，一律 404）、
 **普通用户 403**、**禁用用户拒绝登录**、**JWT 过期与伪造拒绝**、
 **消息落库后重启不丢**，以及**删除钩子拦截删除时主流程不受影响**。

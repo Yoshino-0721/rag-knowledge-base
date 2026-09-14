@@ -490,7 +490,7 @@ def test_get_settings_never_leaks_full_api_key(monkeypatch, admin_h):
     response = client.get("/settings", headers=admin_h)
 
     assert response.status_code == 200
-    assert response.json()["api_key_hint"] == "abcd****mnop"
+    assert response.json()["api_key_hint"] == "****op"
     assert "abcdefghijklmnop" not in response.text
 
 

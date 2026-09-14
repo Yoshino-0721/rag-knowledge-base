@@ -97,12 +97,18 @@ class Settings:
 
     @property
     def api_key_hint(self) -> str:
-        """脱敏后的 Key，用于在界面上展示「是否已配置」。"""
+        """脱敏后的 Key，用于在界面上展示「是否已配置」。
+
+        **只暴露末 2 位。** 原实现是"前 4 + 后 4"共 8 个字符 —— 那不叫脱敏，
+        那是把一把密钥的相当一部分印在设置页上，而这一页恰恰是最不该出现
+        密钥情报的地方。末 2 位足够管理员确认"还是不是同一把 Key"，
+        又不构成可用情报。
+        """
         if not self.api_key:
             return ""
         if len(self.api_key) <= 10:
             return "****"
-        return f"{self.api_key[:4]}****{self.api_key[-4:]}"
+        return f"****{self.api_key[-2:]}"
 
     def require_api_key(self) -> str:
         if not self.api_key:
