@@ -226,7 +226,9 @@ uvicorn src.server:app --reload
 
 打开 <http://127.0.0.1:8000> ，会跳到登录页。首次启动的管理员口令，要么是你设的
 `ADMIN_PASSWORD`，要么是**启动日志横幅里那串随机口令**（只打印一次，请及时保存），
-后者登录后必须先改密。其它成员在登录页切到「注册」自己开账号即可。
+后者登录后必须先改密。**自助注册默认关闭**（`ALLOW_REGISTRATION=false`）——
+开通成员时由管理员在服务端把它设为 `true` 并重启，成员注册完再改回 `false`；
+只有在这个开关打开时，登录页的「注册」标签才可用。
 
 **3. 配置 API Key（仅管理员）**
 
@@ -289,6 +291,9 @@ docker compose up -d --build
 | `ADMIN_USERNAME` | `admin` | 首次启动引导的管理员用户名 |
 | `ADMIN_EMAIL` | `admin@example.com` | 首次启动引导的管理员邮箱 |
 | `ADMIN_PASSWORD` | 空（随机生成） | 首次启动引导的管理员口令。**没有默认口令**：留空则生成随机强口令、启动横幅打印一次并强制首次改密；填入弱口令（<12 位 / <3 类字符 / 命中弱口令表）会**拒绝启动** |
+| `ALLOW_REGISTRATION` | `false` | 是否允许自助注册。**默认关闭**：公网部署下任何人注册成功都会消耗**站点共用**的 API Key 额度。要开通成员时临时设为 `true` 并重启，开通完改回 `false` |
+| `LOGIN_MAX_FAILURES` | `5` | 同一账号连续登录失败多少次后锁定 |
+| `LOGIN_LOCK_SECONDS` | `300` | 锁定时长（秒）。锁定期内登录返回 429 + `Retry-After` |
 | `STORAGE_DIR` | `<仓库>/storage` | 落盘根目录（SQLite、索引清单、向量库） |
 | `DATA_DIR` | `<仓库>/data` | 文档根目录，实际按 `users/<id>/` 分用户存放 |
 
