@@ -26,3 +26,9 @@ htmlcov/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# 多用户运行期产物（storage/ 与 data/* 已整体忽略，这里显式列名提高可读性）
+storage/app.db
+storage/secret.key
+storage/manifests/
+data/users/
