@@ -41,12 +41,57 @@ def restore_global_settings():
         setattr(settings, name, value)
 
 
+@pytest.fixture(scope="session")
+def storage_root(tmp_path_factory):
+    """整个测试会话共用一个临时落盘根（向量库、清单、SQLite 都放这里）。"""
+    return tmp_path_factory.mktemp("storage-root")
+
+
 @pytest.fixture(autouse=True)
-def isolated_auth_db(tmp_path_factory, monkeypatch):
+def isolated_storage(storage_root, monkeypatch):
+    """把全局 settings 的数据/存储目录指到临时根，**任何用例都不许碰真实 storage/**。
+
+    这条是补齐出来的：``src.store.get_collection`` 读的是全局 ``settings.storage_dir``，
+    而早期用例只替换了 ``server`` 模块上那个引用 —— 两者是同一个对象时没问题，
+    一旦有人写法不一致，测试就会在仓库的真实 ``storage/`` 里建出 Chroma 集合
+    （``storage/`` 在 .gitignore 里，所以 git status 看不出来，很容易长期没人发现）。
+    统一在这里兜住：跑测试不再写入任何真实数据目录。
+    """
+    monkeypatch.setattr(settings, "storage_dir", storage_root / "storage")
+    monkeypatch.setattr(settings, "data_dir", storage_root / "data")
+
+
+@pytest.fixture(autouse=True)
+def fast_bcrypt(monkeypatch):
+    """测试期把 bcrypt 成本降到最低 —— **生产代码一行不改**。
+
+    ``hash_password`` 在多个模块里是 ``from ... import`` 绑定的，所以每一处
+    绑定都要替换；漏掉一处，那条路径就还在用 rounds=12 真算一遍。
+    不这么做的话：autouse 的 ``isolated_auth_db`` 每个用例都要引导一次默认管理员，
+    288 个用例光这一项就要多花一百多秒。
+    """
+    import bcrypt
+
+    from src import admin_api
+    from src.auth import db as auth_db, security
+
+    def cheap_hash(password: str) -> str:
+        return bcrypt.hashpw(
+            password.encode("utf-8"), bcrypt.gensalt(rounds=4)
+        ).decode("ascii")
+
+    monkeypatch.setattr(security, "hash_password", cheap_hash)
+    monkeypatch.setattr(auth_db, "hash_password", cheap_hash)
+    monkeypatch.setattr(admin_api, "hash_password", cheap_hash)
+
+
+@pytest.fixture(autouse=True)
+def isolated_auth_db(fast_bcrypt, tmp_path_factory, monkeypatch):
     """每个用例独享一个全新 SQLite，绝不让测试碰到真实的 storage/app.db。
 
     同时固定 JWT_SECRET，避免签发密钥落盘到真实 storage/ 目录。
     目录取自 tmp_path_factory，与用例自己的 tmp_path 互不干扰。
+    显式依赖 fast_bcrypt：引导默认管理员要哈希口令，顺序反了就白等一次 bcrypt。
     """
     from src.auth import db as auth_db
 
