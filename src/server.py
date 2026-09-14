@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import secrets
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Literal
 
@@ -12,6 +13,8 @@ from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from src.auth.api import router as auth_router
+from src.auth.db import init_db
 from src.config import PROJECT_ROOT, apply_settings, settings
 from src.ingest import ingest
 from src.llm import reset_client
@@ -20,7 +23,16 @@ from src.pipeline import answer_question
 
 WEB_DIR = PROJECT_ROOT / "web"
 
-app = FastAPI(title="个人 RAG 知识库助手", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # 建库 + 默认管理员引导（幂等）。测试不跑 lifespan，由 fixture 自行初始化。
+    init_db()
+    yield
+
+
+app = FastAPI(title="个人 RAG 知识库助手", version="0.1.0", lifespan=lifespan)
+app.include_router(auth_router)
 
 
 def _password_ok(request: Request) -> bool:
