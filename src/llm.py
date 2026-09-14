@@ -19,10 +19,23 @@ EMBED_BATCH_SIZE = 32
 RERANK_TIMEOUT = 60.0
 
 
+# 单次对话调用的上限与重试次数。
+# SDK 默认是 read=600s + 重试 2 次 —— 一次提问最坏能拖到半小时，重试还把成本翻倍；
+# 而线程池只有 40 槽，几个卡住的请求就够把全站拖慢。实测一次提问约 10 秒，
+# 45 秒足够；超时宁可让用户重试，也不要让一个请求占着线程半小时。
+CHAT_TIMEOUT_SECONDS = 45.0
+CHAT_MAX_RETRIES = 1
+
+
 @lru_cache(maxsize=1)
 def get_client() -> OpenAI:
     """构造（并缓存）智谱客户端。缺少 API Key 时会抛出可读的错误。"""
-    return OpenAI(api_key=settings.require_api_key(), base_url=settings.base_url)
+    return OpenAI(
+        api_key=settings.require_api_key(),
+        base_url=settings.base_url,
+        timeout=CHAT_TIMEOUT_SECONDS,
+        max_retries=CHAT_MAX_RETRIES,
+    )
 
 
 def reset_client() -> None:

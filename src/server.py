@@ -176,7 +176,7 @@ def update_settings_endpoint(
 
 
 @app.post("/upload")
-async def upload_endpoint(
+def upload_endpoint(
     request: Request,
     files: list[UploadFile] = File(...),
     user: User = Depends(get_current_user),
@@ -205,7 +205,7 @@ async def upload_endpoint(
         if not name or Path(name).suffix.lower() not in SUPPORTED_SUFFIXES:
             skipped.append(name or "(未命名文件)")
             continue
-        content = await upload_guard.read_within_limit(upload, budget)
+        content = upload_guard.read_within_limit(upload, budget)
         budget -= len(content)
         target = paths.data_dir / name
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -353,7 +353,16 @@ def delete_session(
     return {"ok": True}
 
 
+# 并发闸门：查询端点是同步 def，占的是 anyio 线程池（默认 40 槽）。没有闸门时
+# 几十个并发提问就能把线程池占满，连 /health 都要排队 —— 而每次提问还会真花钱
+# 调模型。满员直接 429 快速失败，不排队（排队只把所有人一起拖慢）。
+from src.concurrency import AsyncSlot, limit_concurrency, slot_count
+
+_QUERY_SLOTS = AsyncSlot("query", slot_count("MAX_CONCURRENT_QUERIES", 4))
+
+
 @app.post("/query")
+@limit_concurrency(_QUERY_SLOTS, "并发提问已满，请稍后重试")
 def query_endpoint(
     payload: QueryRequest,
     user: User = Depends(get_current_user),
