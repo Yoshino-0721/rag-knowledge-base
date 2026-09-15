@@ -2,8 +2,9 @@
 
 两条都是为了堵"花钱"与"撞库"这两个真实口子（见 C2 复核清单 1.1 / 1.2）：
 
-- **自助注册默认关闭**：公网部署下，任何人注册成功都会消耗**站点共用**的 API Key
-  额度（上传文档要 embedding、提问要 chat）；
+- **自助注册默认开启，但注册 ≠ 开号**：提交后是 ``pending``，管理员审核通过才能登录 ——
+  所以"开门"不会立刻消耗站点共用的 API Key 额度（上传要 embedding、提问要 chat）。
+  本文件里 ``allow_registration=False`` 那条分支测的是**显式关门**这条支路；
 - **登录失败到阈值即短暂锁定**：管理员账号被撞开就是全站数据。
 
 注意 conftest 里的 autouse 夹具 `open_registration_and_clear_throttle` 默认把注册
@@ -27,7 +28,7 @@ def login(client, account="admin", password="definitely-wrong"):
 
 
 class TestRegistrationGate:
-    def test_closed_by_default(self, client, monkeypatch):
+    def test_explicit_false_closes_the_door(self, client, monkeypatch):
         monkeypatch.setattr(settings, "allow_registration", False)
 
         response = client.post("/api/auth/register", json=NEWBIE)

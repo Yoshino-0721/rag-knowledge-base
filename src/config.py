@@ -65,9 +65,11 @@ class Settings:
     top_k: int
     # dev（默认）/ production。非 dev 时强制要求外部注入 JWT_SECRET，见 auth.security
     app_env: str = "dev"
-    # 是否允许自助注册。**默认关闭**：公网部署下，任何人注册成功都会消耗站点共用的
-    # API Key 额度（上传文档要 embedding、提问要 chat）。开通成员时临时设为 true。
-    allow_registration: bool = False
+    # 是否允许自助注册。**默认开启**：注册出来的账号是 pending 状态，
+    # 必须由管理员审核通过才能登录（见 auth.models.STATUS_PENDING），
+    # 所以"开门"不会立刻消耗站点共用的 API Key 额度 —— 闸门在审核那一步。
+    # 要彻底关掉自助注册，显式设 ALLOW_REGISTRATION=false。
+    allow_registration: bool = True
     # 登录节流：同一账号连续失败 N 次后锁定 M 秒（见 src/auth/throttle.py）
     login_max_failures: int = 5
     login_lock_seconds: int = 300
@@ -138,7 +140,7 @@ def load_settings() -> Settings:
         chunk_overlap=int(_get("CHUNK_OVERLAP", "120")),
         top_k=int(_get("TOP_K", "5")),
         app_env=_get("APP_ENV", "dev"),
-        allow_registration=_get_bool("ALLOW_REGISTRATION", "false"),
+        allow_registration=_get_bool("ALLOW_REGISTRATION", "true"),
         login_max_failures=int(_get("LOGIN_MAX_FAILURES", "5")),
         login_lock_seconds=int(_get("LOGIN_LOCK_SECONDS", "300")),
         max_upload_size=int(_get("MAX_UPLOAD_SIZE", "52428800")),

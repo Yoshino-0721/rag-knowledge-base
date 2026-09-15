@@ -175,7 +175,9 @@ def test_admin_cannot_demote_or_disable_self(client, admin_h):
         f"/api/admin/users/{admin_id}", json={"role": "user"}, headers=admin_h
     )
     assert demote.status_code == 400, demote.text
-    assert "不能降级或禁用" in demote.json()["detail"]
+    # 文案覆盖了三种自锁动作（降级 / 驳回 / 禁用），这里只断言共有的那半句 ——
+    # 钉死整句会让"再加一种自锁动作"变成一次无意义的测试改动
+    assert "不能降级" in demote.json()["detail"]
 
     disable = client.patch(
         f"/api/admin/users/{admin_id}", json={"is_active": False}, headers=admin_h

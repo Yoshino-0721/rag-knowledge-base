@@ -1,4 +1,4 @@
-﻿"""管理员后台 API：用户管理、全会话查看、全文档管理与系统操作。
+"""管理员后台 API：用户管理、全会话查看、全文档管理与系统操作。
 
 整条路由挂 ``require_admin`` 依赖 —— 普通用户访问任何子路径都会 403。
 管理员对自己也有保护：不能降级 / 禁用自己的账号，避免把全站锁死。
@@ -17,7 +17,14 @@ from sqlalchemy.orm import Session as OrmSession
 
 from src.auth.api import validate_email, validate_username
 from src.auth.deps import get_db, require_admin
-from src.auth.models import ChatSession, Document, Message, User
+from src.auth.models import (
+    STATUS_ACTIVE,
+    STATUS_PENDING,
+    ChatSession,
+    Document,
+    Message,
+    User,
+)
 from src.auth.security import generate_strong_password, hash_password
 from src.config import settings
 from src.documents import delete_document, document_payload, sync_documents
@@ -54,6 +61,9 @@ class UserCreate(BaseModel):
 class UserUpdate(BaseModel):
     role: str | None = Field(default=None, pattern="^(user|admin)$")
     is_active: bool | None = None
+    # 审核动作：active=通过（顺带启用）、rejected=不通过（顺带停用）、pending=打回待审。
+    # 与 is_active 同时给时以 is_active 为准 —— 允许"已通过但现在停用"这种组合。
+    status: str | None = Field(default=None, pattern="^(pending|active|rejected)$")
 
 
 class PasswordReset(BaseModel):
@@ -74,6 +84,8 @@ def _user_row(user: User) -> dict:
         "email": user.email,
         "role": user.role,
         "is_active": user.is_active,
+        # 审核状态：管理后台据此把"待审核"挑出来，通过/拒绝就走 PATCH status
+        "status": user.status,
         "created_at": user.created_at.isoformat() if user.created_at else None,
     }
 
@@ -144,13 +156,21 @@ def update_user(
     self_lockout = user_id == admin.id and (
         (payload.role is not None and payload.role != "admin")
         or (payload.is_active is False)
+        # 审核状态也会连带停用（见下方联动），所以"把自己打回待审/拒绝"同样算自锁
+        or (payload.status is not None and payload.status != STATUS_ACTIVE)
     )
     if self_lockout:
-        raise HTTPException(status_code=400, detail="不能降级或禁用自己的管理员账号")
+        raise HTTPException(status_code=400, detail="不能降级、驳回或禁用自己的管理员账号")
 
     if payload.role is not None:
         target.role = payload.role
+    if payload.status is not None:
+        target.status = payload.status
+        # 审核状态与启用开关联动：通过就顺带启用，打回/拒绝就顺带停用 ——
+        # 否则会留下"已通过但没启用""被拒绝却仍能登录"这类半开状态。
+        target.is_active = payload.status == STATUS_ACTIVE
     if payload.is_active is not None:
+        # 显式给的 is_active 优先级最高（用于"已通过但先停用"这种组合）
         target.is_active = payload.is_active
     db.commit()
     return _user_row(target)
@@ -363,6 +383,10 @@ def stats(db: OrmSession = Depends(get_db)) -> dict:
         "users": db.scalar(select(func.count(User.id))),
         "active_users": db.scalar(
             select(func.count(User.id)).where(User.is_active)
+        ),
+        # 待审核数：管理后台首屏就能看到"有几个人在等"，不用自己去翻列表
+        "pending_users": db.scalar(
+            select(func.count(User.id)).where(User.status == STATUS_PENDING)
         ),
         "sessions": db.scalar(select(func.count(ChatSession.id))),
         "messages": db.scalar(select(func.count(Message.id))),

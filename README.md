@@ -3,7 +3,7 @@
 ![Python](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?logo=fastapi&logoColor=white)
 ![ChromaDB](https://img.shields.io/badge/ChromaDB-local-FF6B6B)
-![Tests](https://img.shields.io/badge/tests-476%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-491%20passed-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
 ## ⚠️ 部署前必读（安全）
@@ -192,7 +192,7 @@ flowchart LR
 | 精排 | 智谱 `rerank`（**非** OpenAI 兼容协议，直接发 HTTP 请求，复用同一个 Key） |
 | 文档解析 | PyMuPDF / python-docx / python-pptx / 原生读取 |
 | 前端 | 原生 HTML + JS，无需构建，**不引任何 CDN** |
-| 测试 | pytest（476 项） |
+| 测试 | pytest（491 项） |
 
 > 说明：**未引入 LangChain**。本项目链路只有「检索 → 拼 Prompt → 调用模型」，
 > 原生实现更短更透明、出错好定位；等将来需要多路检索或 Agent 编排时再评估。
@@ -246,7 +246,7 @@ uvicorn src.server:app --reload
 
 打开 <http://127.0.0.1:8000> ，会跳到登录页。首次启动的管理员口令，要么是你设的
 `ADMIN_PASSWORD`，要么是**启动日志横幅里那串随机口令**（只打印一次，请及时保存），
-后者登录后必须先改密。**自助注册默认关闭**（`ALLOW_REGISTRATION=false`）——
+后者登录后必须先改密。**自助注册默认开启**，但注册不等于开号：提交后账号是「待审核」，
 开通成员时由管理员在服务端把它设为 `true` 并重启，成员注册完再改回 `false`；
 只有在这个开关打开时，登录页的「注册」标签才可用。
 
@@ -311,7 +311,7 @@ docker compose up -d --build
 | `ADMIN_USERNAME` | `admin` | 首次启动引导的管理员用户名 |
 | `ADMIN_EMAIL` | `admin@example.com` | 首次启动引导的管理员邮箱 |
 | `ADMIN_PASSWORD` | 空（随机生成） | 首次启动引导的管理员口令。**没有默认口令**：留空则生成随机强口令、启动横幅打印一次并强制首次改密；填入弱口令（<12 位 / <3 类字符 / 命中弱口令表）会**拒绝启动** |
-| `ALLOW_REGISTRATION` | `false` | 是否允许自助注册。**默认关闭**：公网部署下任何人注册成功都会消耗**站点共用**的 API Key 额度。要开通成员时临时设为 `true` 并重启，开通完改回 `false` |
+| `ALLOW_REGISTRATION` | `true` | 是否允许自助注册。**默认开启，但注册 ≠ 开号**：提交后账号是 `pending`，管理员在后台点「通过」才能登录。闸门在审核那一步，所以"开门"不会立刻消耗站点共用的 API Key 额度；要彻底关门就显式设 `false` |
 | `LOGIN_MAX_FAILURES` | `5` | 同一账号连续登录失败多少次后锁定 |
 | `LOGIN_LOCK_SECONDS` | `300` | 锁定时长（秒）。锁定期内登录返回 429 + `Retry-After` |
 | `MAX_UPLOAD_SIZE` | `52428800` | 单次上传请求的**总体积**上限（字节，默认 50 MiB）。超限返回 413；多文件共享同一份预算 |
@@ -370,7 +370,7 @@ docker compose up -d --build
 pytest
 ```
 
-476 项测试全部使用桩对象，不发起真实 API 调用，也不会改动真实的 `.env`。
+491 项测试全部使用桩对象，不发起真实 API 调用，也不会改动真实的 `.env`。
 其中多用户部分专门覆盖了**跨用户越权**（A 读不到 B 的会话 / 文档，一律 404）、
 **普通用户 403**、**禁用用户拒绝登录**、**JWT 过期与伪造拒绝**、
 **消息落库后重启不丢**，以及**删除钩子拦截删除时主流程不受影响**。
