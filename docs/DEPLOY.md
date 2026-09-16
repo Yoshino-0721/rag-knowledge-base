@@ -39,8 +39,14 @@ docker compose up -d --build # 改完代码后重建
 ```
 
 > ⚠️ **用户、会话、口令哈希全在 `storage/app.db` 里**。这个文件连同
-> `storage/secret.key` 一起需要在宿主机上保留 —— 删掉 `app.db` 等于清空所有账号，
+> `storage/secret.key`、向量库 `storage/chroma.sqlite3` 以及文档清单
+> `storage/manifests/` 一起需要在宿主机上保留 —— 删掉 `app.db` 等于清空所有账号，
 > 删掉 `secret.key` 会让所有人被强制重新登录（它们的父目录 `storage/` 已挂 volume，正常不会丢）。
+>
+> ⚠️ **清库时别只删账号和清单，漏掉向量库**：`storage/chroma.sqlite3` 里的分块如果
+> 还在、而 `storage/manifests/` 已经没了，这些文档会变成**幽灵文档** —— 列表里看不到，
+> 检索却仍会命中、引用来源仍会列出来。服务启动时会自动对账清理这类残留并打警告日志
+> （见「清库清单」）。
 
 ---
 
@@ -117,6 +123,28 @@ docker compose start
 #   正确做法是管理员登录后用「重置密码」，或进管理后台给对应账号重置
 ```
 
+### 清库清单（重置 / 轮换凭证时照这份删）
+
+**整目录处理，别只删其中一个** —— 漏删任何一个都可能留下「列表里看不到、检索却仍命中」的**幽灵文档**：
+
+| 路径 | 是什么 | 漏删的后果 |
+|---|---|---|
+| `storage/app.db` | 账号、会话、消息、文档登记 | 账号与会话残留 |
+| `storage/secret.key` | JWT 签名密钥（未显式设 `JWT_SECRET` 时用它） | 旧 token 仍可用 |
+| `storage/manifests/` | 每个用户的文档清单（`user_<id>.json`） | 文档列表与真实数据分叉 |
+| `storage/chroma.sqlite3`（连同同目录下的 UUID 子目录） | **向量库本体**：分块、向量与 HNSW 索引 | **幽灵文档**：清单与磁盘上都没有它，检索仍命中、引用来源仍列出 |
+| `data/users/` | 上传的原始文档 | 文件已不在、向量还在 → 同样是幽灵 |
+
+> 服务启动时会自动对账：清掉「清单里没有、向量库里还有」的 `source` 并打警告日志
+> （`src/reconcile.py`，日志关键字「已清理幽灵向量」）。**但这是事后补救** ——
+> 它保证的是「不会再长期留着幽灵」，不能替代上面这份清单；
+> 清库与轮换凭证时仍然要按表逐项删干净。
+>
+> ⚠️ 2026-09-16 的真实事故就是漏了 `storage/chroma.sqlite3`：账号、清单、`data/users/`
+> 都删了，向量库没删，于是 `p1-upload.pdf` / `e2e-p1-upload.pdf` 的分块留在库里，
+> 引用来源一直显示着这两份早已不存在的文件（README 效果图当时就带着这两个名字）。
+
+
 ---
 
 ## 三、进阶：Nginx 反代 + 域名 + HTTPS
@@ -172,7 +200,7 @@ sudo certbot --nginx -d your-domain.com
 | 容器反复重启、日志 OOM | 内存不足。换 2G 以上机型，或用 `docker compose up -d` 后在宿主加 swap |
 | `storage/` 权限报错 | 容器以 root 运行，宿主机目录属主变了。`sudo chown -R $USER storage data` |
 | 改了 `EMBED_MODEL` / `EMBED_DIM` 后检索不准 | 旧向量与新维度不匹配，需在界面点「重建索引」（管理员可对全站执行 `POST /api/admin/system/reindex`） |
-| 忘记管理员口令 | 引导只在 `users` 表为空时执行，改 `ADMIN_PASSWORD` 无效。用另一个管理员在后台「重置密码」，或临时把 `storage/app.db` 移走重启（**会清空所有账号与会话**，慎用） |
+| 忘记管理员口令 | 引导只在 `users` 表为空时执行，改 `ADMIN_PASSWORD` 无效。用另一个管理员在后台「重置密码」，或临时把 `storage/app.db` 移走重启（**会清空所有账号与会话**，慎用）；若同时删了 `storage/manifests/`，务必连 `storage/chroma.sqlite3` 一起删 —— 只删前两者会留下**幽灵文档**（见 §7「清库清单」） |
 | 重启后所有人都要重新登录 | 找不到 `JWT_SECRET` 且 `storage/secret.key` 丢了。显式设置 `JWT_SECRET` 即可避免 |
 | 普通用户看不到「设置」按钮 | 设计如此。站点配置（API Key / 模型 / 检索参数）只对管理员开放 |
 | 上传 / 删除文档报 500 | 本机若挂了「安全删除钩子」会拦删除动作；代码已按「尽力而为 + 改名挪开」兜底，若仍失败请看日志里 `清理…失败` 的告警行 |

@@ -14,7 +14,7 @@ T5/R4/T1/R3/T2/T7/R2 七条最小修复 + 第二个项目演示期实测发现�
 | | rag-knowledge-base（p1） | data-analyst-agent（p2） |
 |---|---|---|
 | 分支 / HEAD | `main` `b3f63ef` | `master` `bc09e86` |
-| 测试 | **492 通过** | **715 通过**（17 deselected，Docker 集成默认跳过） |
+| 测试 | **507 通过** | **715 通过**（17 deselected，Docker 集成默认跳过） |
 | 远程 | `origin` = github.com/Yoshino-0721/**rag-knowledge-base**.git，**已 push**：`refs/heads/main` = `b3f63ef`（`ls-remote` 回读核对过，与本地逐字一致） | `origin` = github.com/Yoshino-0721/**data-analyst-agent**.git，**已 push**：`refs/heads/master` = `bc09e86`（同样回读核对）。Q1 已结：两边建的都是空仓库，首次推送即建分支。**仍一律不用 `--force`** |
 | 端口 | 8000 | 8123 |
 
@@ -231,7 +231,7 @@ powershell -ExecutionPolicy Bypass -File scripts/e2e_real.ps1 -Project p1
    全是 `docs:` 前缀、只动了本文档，那也算一致（文档自己每改一次就会推进一次 HEAD，
    否则这份自检清单会自我失效）。其余情况一律先读新 commit，别按旧状态动手。
 2. **对环境**：在各自仓库根目录跑一次全量测试（命令见 §4）—— 数字应当与 §0 一致
-   （p1 492 / p2 715）。不一致说明代码或环境已经漂移，先查清楚再改，别在不确定的
+   （p1 507 / p2 715）。不一致说明代码或环境已经漂移，先查清楚再改，别在不确定的
    基线上做改动。
 3. **对约定**：**先读 `AGENTS.md`，再读本文档** —— 两份合起来才完整：
    `AGENTS.md` 说"不许做什么、为什么"（架构决策 + 硬约束 + 踩过的坑），

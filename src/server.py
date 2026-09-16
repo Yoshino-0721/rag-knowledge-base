@@ -48,6 +48,7 @@ from src.llm import reset_client
 from src.loaders import SUPPORTED_SUFFIXES
 from src.paths import safe_target_name
 from src.pipeline import answer_question
+from src.reconcile import all_user_ids, reconcile_all_vectors
 from src.serializers import message_payload, session_payload
 from src.store import get_collection
 from src.userspace import user_paths
@@ -62,6 +63,10 @@ async def lifespan(_app: FastAPI):
     verify_security_config()
     # 建库 + 管理员引导（幂等）。测试不跑 lifespan，由 fixture 自行初始化。
     init_db()
+    # 向量对账：清掉「清单里没有、向量库里还留着」的幽灵分块（见 src/reconcile.py）。
+    # 放在 init_db 之后（要先有账号才知道该对账谁），并且自己兜异常 —— 清理是附带动作，
+    # 不许把启动带崩；测试不跑 lifespan，由 tests/test_reconcile.py 直接调函数。
+    reconcile_all_vectors(all_user_ids())
     yield
 
 
