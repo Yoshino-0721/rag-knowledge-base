@@ -65,7 +65,7 @@ async def lifespan(_app: FastAPI):
     yield
 
 
-app = FastAPI(title="个人 RAG 知识库助手", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="团队 RAG 知识库", version="0.1.0", lifespan=lifespan)
 app.include_router(auth_router)
 app.include_router(admin_router)
 

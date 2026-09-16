@@ -1,4 +1,4 @@
-# 个人 RAG 知识库助手
+# 团队级 RAG 知识库平台
 
 ![Python](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?logo=fastapi&logoColor=white)

@@ -1,4 +1,4 @@
-# 个人 RAG 知识库助手 —— 运行镜像
+# 团队 RAG 知识库 —— 运行镜像
 FROM python:3.13-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \

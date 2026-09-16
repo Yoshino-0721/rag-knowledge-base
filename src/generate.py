@@ -10,7 +10,7 @@ from src.config import settings
 from src.llm import chat
 from src.retrieve import Hit
 
-SYSTEM_PROMPT = """你是一个严谨的个人知识库助手。请严格依据【参考资料】回答用户问题：
+SYSTEM_PROMPT = """你是一个严谨的团队知识库助手。请严格依据【参考资料】回答用户问题：
 
 1. 只使用参考资料中的信息，不要依赖你的先验知识，更不要编造。
 2. 如果参考资料不足以回答，请明确说明「知识库中没有相关内容」，并指出还缺什么。
