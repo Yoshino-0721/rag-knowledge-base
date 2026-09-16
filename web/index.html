@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light">
-<meta name="description" content="个人 RAG 知识库助手 —— 基于本地文档的可溯源问答系统">
-<title>个人 RAG 知识库助手</title>
+<meta name="description" content="团队 RAG 知识库 —— 基于本地文档的可溯源问答系统">
+<title>团队 RAG 知识库</title>
 <style>
   :root {
     --bg: #eef1f8;
@@ -288,6 +288,7 @@
   .pill.err  .dot { background: var(--danger); box-shadow: 0 0 0 3px var(--danger-soft); }
   @keyframes pulse { 50% { opacity: .35; transform: scale(.82); } }
 
+  a.btn { text-decoration: none; }
   .btn {
     display: inline-flex;
     align-items: center;
@@ -1010,7 +1011,7 @@
         </svg>
       </span>
       <div class="brand-text">
-        <h1>个人 RAG 知识库助手</h1>
+        <h1>团队 RAG 知识库</h1>
         <p class="tagline">本地索引 · 回答可溯源 · 文档不出本机</p>
       </div>
     </div>
@@ -1047,6 +1048,17 @@
         </svg>
         <span class="btn-label">清空对话</span>
       </button>
+
+      <!-- 管理员回后台的入口：普通用户看不到（applyUser 里按 role 显隐）。
+           必须是 <a href> 页面跳转，不是 apiFetch —— 那是取数据，这是换页面。 -->
+      <a class="btn" id="adminLink" href="/admin" title="管理后台" hidden>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3l7.5 3.5v5c0 4.5-3 8-7.5 9.5C7.5 19.5 4.5 16 4.5 11.5v-5z"/>
+          <path d="M9.5 12l2 2 3.5-4"/>
+        </svg>
+        <span class="btn-label">管理后台</span>
+      </a>
 
       <button class="btn" id="settingsBtn" title="设置">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -1272,6 +1284,7 @@ const sendBtn = document.getElementById('send');
 const ingestBtn = document.getElementById('ingest');
 const uploadBtn = document.getElementById('upload');
 const settingsBtn = document.getElementById('settingsBtn');
+const adminLink = document.getElementById('adminLink');
 const filePicker = document.getElementById('filePicker');
 const statusEl = document.getElementById('status');
 const statusPill = document.getElementById('statusPill');
@@ -1966,6 +1979,8 @@ function applyUser(user) {
 
   // 站点设置只对管理员开放：普通用户连入口都不显示，启动时也不会去拉 /settings（那是 403）
   settingsBtn.hidden = !isAdmin;
+  // 回管理后台的入口同理：只有管理员看得到，否则点进去也是一页 403
+  adminLink.hidden = !isAdmin;
   if (stepConfig) stepConfig.hidden = !isAdmin;
 }
 

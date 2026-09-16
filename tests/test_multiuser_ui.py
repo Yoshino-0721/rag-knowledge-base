@@ -178,6 +178,22 @@ def test_index_sends_session_id_instead_of_client_history():
     assert "history: conversation" not in html
 
 
+def test_index_has_admin_entry_that_only_admins_see():
+    """管理员登录后必须能回到 /admin —— 否则进了工作台就被困住了。
+
+    2026-09-15 缺陷：工作台顶栏只有「清空对话 / 设置 / 改密 / 登出」，
+    管理员没有任何回后台的入口（只能手改地址栏）。修法三条约束：
+    ① 用 `<a href="/admin">` 做**页面跳转**，不是 apiFetch（那是取数据）；
+    ② 默认 `hidden`，普通用户看不到；
+    ③ 由 `/api/auth/me` 的 role 决定显隐（applyUser 里跟着 isAdmin 一起切）。
+    """
+    html = read_page("index")
+    assert 'id="adminLink"' in html, "工作台缺少回管理后台的入口"
+    assert 'href="/admin"' in html, "入口必须是页面跳转（<a href>），不是 apiFetch"
+    assert 'id="adminLink" href="/admin" title="管理后台" hidden' in html, "默认应当是隐藏的"
+    assert "adminLink.hidden = !isAdmin" in html, "显隐必须跟 role 走"
+
+
 def test_index_hides_settings_from_non_admin():
     """站点设置只对管理员开放：前端要按角色决定是否展示入口。"""
     html = read_page("index")
