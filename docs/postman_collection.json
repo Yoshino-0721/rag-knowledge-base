@@ -1,0 +1,375 @@
+{
+  "info": {
+    "_postman_id": "7c1f3a52-9b4e-4d61-8a2f-5e0c9d1b7a34",
+    "name": "RAG 知识库 · 接口探索性测试",
+    "description": "团队级 RAG 知识库平台的接口探索性测试集合。\n\n使用前请先：\n1. 启动服务：uvicorn src.server:app --reload\n2. 在「集合变量」里把 base_url 改成本地地址（默认 http://127.0.0.1:8000）\n3. 把 admin_password 改成你在 .env 里设置的 ADMIN_PASSWORD\n4. 先跑「01 鉴权 / 登录（获取 token）」，token 会自动写入集合变量，后续请求自动带上\n\n说明：\n· 本集合定位于「探索性调试」——手动改参数快速看返回结构，确认后再固化成 pytest 用例。\n  自动化回归以 tests/ 下的 507 项 Pytest 用例为准（pytest --cov=src tests/，覆盖率 96%）。\n· 负向用例（01-2、02-3）用来验证鉴权边界：越权与未登录分别应返回 401/403/404。",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://127.0.0.1:8000",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "session_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "admin_account",
+      "value": "admin",
+      "type": "string"
+    },
+    {
+      "key": "admin_password",
+      "value": "Unit-Test-Admin-9x!",
+      "type": "string"
+    },
+    {
+      "key": "upload_file",
+      "value": "sample.md",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "01 鉴权",
+      "item": [
+        {
+          "name": "01-1 登录（获取 token）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('状态码 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "var body = pm.response.json();",
+                  "",
+                  "pm.test('返回 token 且非空', function () {",
+                  "    pm.expect(body).to.have.property('token');",
+                  "    pm.expect(body.token).to.be.a('string').and.not.empty;",
+                  "});",
+                  "",
+                  "pm.test('返回 user，且不泄露口令哈希', function () {",
+                  "    pm.expect(body.user).to.be.an('object');",
+                  "    pm.expect(body.user).to.not.have.property('password_hash');",
+                  "});",
+                  "",
+                  "// 自动写入集合变量，后续请求直接复用，避免手工复制 token",
+                  "if (body.token) {",
+                  "    pm.collectionVariables.set('token', body.token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"account\": \"{{admin_account}}\",\n    \"password\": \"{{admin_password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "用管理员账号换取 JWT。响应体里的 token 会被测试脚本写入集合变量 {{token}}。\n注意：连续输错密码会触发登录节流（5 次 / 300s），超限返回 429 + Retry-After。"
+          },
+          "auth": {
+            "type": "noauth"
+          }
+        },
+        {
+          "name": "01-2 负向：错误口令应 401（且不泄露账号是否存在）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('错误口令应为 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('文案不区分“用户不存在”与“口令错误”', function () {",
+                  "    var detail = pm.response.json().detail || '';",
+                  "    pm.expect(detail).to.include('不正确');",
+                  "    pm.expect(detail).to.not.include('用户不存在');",
+                  "    pm.expect(detail).to.not.include('不存在该账号');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"account\": \"{{admin_account}}\",\n    \"password\": \"definitely-wrong-password\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "负向对照：验证登录失败时的状态码为 401，且错误文案不区分「账号不存在」与「口令错误」——否则会变成账号枚举漏洞。"
+          },
+          "auth": {
+            "type": "noauth"
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 会话",
+      "item": [
+        {
+          "name": "02-1 创建会话",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('状态码 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "var body = pm.response.json();",
+                  "",
+                  "pm.test('返回会话 id', function () {",
+                  "    pm.expect(body).to.have.property('id');",
+                  "});",
+                  "",
+                  "pm.collectionVariables.set('session_id', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"title\": \"Postman 探索性测试会话\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/sessions",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "sessions"
+              ]
+            },
+            "description": "创建一条会话，id 会被写入集合变量 {{session_id}}，方便后续请求复用。请求体可省略，省略时标题默认「新会话」。"
+          }
+        },
+        {
+          "name": "02-2 会话列表（需 Bearer token）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('状态码 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "var body = pm.response.json();",
+                  "",
+                  "pm.test('sessions 必须是数组', function () {",
+                  "    pm.expect(body.sessions).to.be.an('array');",
+                  "});",
+                  "",
+                  "pm.test('只返回当前用户的会话（不泄露他人数据）', function () {",
+                  "    body.sessions.forEach(function (s) {",
+                  "        pm.expect(s).to.have.property('id');",
+                  "    });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/sessions",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "sessions"
+              ]
+            },
+            "description": "携带集合级 Bearer token 拉取当前用户可见的会话列表。\n多用户环境下这里只应出现自己的会话——越权由 pytest 的 alice/bob 双账号用例守护。"
+          }
+        },
+        {
+          "name": "02-3 负向：未带 token 应 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('未带 token 应为 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('响应体不含堆栈等内部信息', function () {",
+                  "    pm.expect(pm.response.text()).to.not.include('Traceback');",
+                  "    pm.expect(pm.response.text()).to.not.include('File \"/');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/sessions",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "sessions"
+              ]
+            },
+            "description": "负向对照：显式关闭鉴权后请求受保护接口，应当返回 401 而不是 200 或 500。\n这条用来验证「受保护接口确实受保护」，避免鉴权依赖被误删后无人发现。"
+          },
+          "auth": {
+            "type": "noauth"
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 文档",
+      "item": [
+        {
+          "name": "03-1 上传文档（multipart）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('状态码 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "var body = pm.response.json();",
+                  "",
+                  "pm.test('返回 saved 数组', function () {",
+                  "    pm.expect(body.saved).to.be.an('array');",
+                  "});",
+                  "",
+                  "pm.test('响应在 30s 内返回', function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(30000);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "files",
+                  "type": "file",
+                  "src": "{{upload_file}}",
+                  "description": "支持 PDF / Word / PPT / Markdown。字段名必须是 files（复数），且可重复添加多个。"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/upload",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "upload"
+              ]
+            },
+            "description": "上传文档并立即增量建库。\n\n注意路径是 /upload，**不是** /api/upload。\n体积限制有两道闸门：先按 Content-Length 快拒，再按累计读取字节兜底（防伪造头与 chunked）。超限返回 413。\n\n首次使用请把集合变量 upload_file 改成你本地一个真实文件的路径，或在此请求的 Body 里手动选择文件。"
+          }
+        }
+      ]
+    }
+  ]
+}

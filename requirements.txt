@@ -1,6 +1,10 @@
 openai>=1.40.0
 chromadb>=0.5.0
 fastapi>=0.115.0
+# /upload 用 File(...) 收文件 —— 它不是 import 出来的依赖，但 FastAPI 在
+# **注册路由**时就要求装好，缺了直接抛 RuntimeError、服务起不来、测试连收集都过不去。
+# 开发机上因为别处装过所以测试全绿，换台干净机器必炸，故在此显式声明。
+python-multipart>=0.0.9
 uvicorn[standard]>=0.30.0
 pymupdf>=1.24.0
 python-docx>=1.1.0
